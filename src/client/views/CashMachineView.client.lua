@@ -18,9 +18,15 @@
 ]]
 
 local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Get the remote event for cash machine intents
+local eventsFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
+local cashMachineIntent = eventsFolder:WaitForChild("CashMachineIntent") :: RemoteEvent
 
 -- Constants
 local CASH_MACHINE_TAG = "CashMachine"
+local WITHDRAW_AMOUNT = 50
 
 -- Sets up interaction handling for a single cash machine
 local function setupCashMachine(cashMachine: Instance)
@@ -40,6 +46,9 @@ local function setupCashMachine(cashMachine: Instance)
 
 		-- Play the sound
 		sound:Play()
+
+		-- Send intent to server to withdraw gold
+		cashMachineIntent:FireServer("Withdraw", WITHDRAW_AMOUNT)
 	end)
 
 	print(`CashMachineView: Setup complete for {cashMachine.Name}`)

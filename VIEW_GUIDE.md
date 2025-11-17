@@ -89,25 +89,34 @@ print("YourView: Initialized")
 
 ## Example: CashMachineView
 
-The `CashMachineView.client.lua` file demonstrates pure client-side feedback:
+The `CashMachineView.client.lua` file demonstrates **Pattern B: Intent-Based with Server Validation**:
 
 ### Features:
 - Uses CollectionService to find all "CashMachine" tagged instances
 - Connects to ProximityPrompt.Triggered event
-- Emits particles and plays sound immediately
-- No server communication required
+- Provides immediate visual/audio feedback (particles + sound)
+- Sends intent to server to withdraw gold
+- Server validates and updates player's inventory
 
 ### Pattern Used:
 ```lua
+-- At the top of the file
+local cashMachineIntent = eventsFolder:WaitForChild("CashMachineIntent") :: RemoteEvent
+local WITHDRAW_AMOUNT = 50
+
+-- In the setup function
 proximityPrompt.Triggered:Connect(function(player: Player)
-	-- Read particle rate and emit
+	-- Immediate visual/audio feedback
 	local particleCount = particleEmitter.Rate
 	particleEmitter:Emit(particleCount)
-
-	-- Play sound
 	sound:Play()
+
+	-- Send intent to server
+	cashMachineIntent:FireServer("Withdraw", WITHDRAW_AMOUNT)
 end)
 ```
+
+This demonstrates the key MVC principle: **immediate client feedback** followed by **server authority** through the intent system.
 
 ## Best Practices
 

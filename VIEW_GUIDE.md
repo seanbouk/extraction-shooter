@@ -1,0 +1,246 @@
+# View Development Guide
+
+This guide explains how to create Views in this Roblox MVC project.
+
+## What is a View?
+
+Views are LocalScripts that handle client-side visual and audio feedback. They observe game state and provide immediate user feedback while waiting for server confirmation for authoritative state changes.
+
+## Architecture Overview
+
+Views live exclusively on the client and are responsible for:
+
+- **Displaying** visual and audio feedback
+- **Listening** to user interactions (ProximityPrompts, buttons, etc.)
+- **Sending intents** to Controllers via RemoteEvents (when server logic is needed)
+- **Updating UI** based on state broadcasts from Models
+
+## Creating a New View
+
+### Step 1: Understand View Patterns
+
+Views typically follow one of two patterns:
+
+**Pattern A: Pure Client-Side Feedback**
+- No server communication
+- Immediate visual/audio response only
+- Example: Particle effects, sound effects, animations
+
+**Pattern B: Intent-Based with Server Validation**
+- Send intent to Controller via RemoteEvent
+- Provide immediate feedback
+- Wait for server confirmation before showing final state
+- Example: Purchasing items, equipping gear, collecting objects
+
+### Step 2: Create Your View File
+
+Create a new LocalScript in `src/client/views/YourView.client.lua`:
+
+```lua
+--!strict
+
+local CollectionService = game:GetService("CollectionService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Constants
+local TAG_NAME = "YourTag"
+
+-- Sets up a single tagged instance
+local function setupInstance(instance: Instance)
+	-- Wait for required children
+	local button = instance:WaitForChild("Button") :: TextButton
+
+	-- Connect to user interaction
+	button.Activated:Connect(function()
+		-- Provide immediate feedback
+		button.Text = "Clicked!"
+
+		-- Optional: Send intent to server
+		-- local intent = ReplicatedStorage:WaitForChild("Shared")
+		-- 	:WaitForChild("Events")
+		-- 	:WaitForChild("YourIntent") :: RemoteEvent
+		-- intent:FireServer("Action", data)
+	end)
+
+	print(`YourView: Setup complete for {instance.Name}`)
+end
+
+-- Initialize all existing tagged instances
+for _, instance in ipairs(CollectionService:GetTagged(TAG_NAME)) do
+	task.spawn(function()
+		setupInstance(instance)
+	end)
+end
+
+-- Handle dynamically added instances
+CollectionService:GetInstanceAddedSignal(TAG_NAME):Connect(function(instance: Instance)
+	task.spawn(function()
+		setupInstance(instance)
+	end)
+end)
+
+print("YourView: Initialized")
+```
+
+## File Locations
+
+- **Your Views**: `src/client/views/YourView.client.lua`
+- **RemoteEvents** (for server communication): `ReplicatedStorage/Shared/Events/`
+
+## Example: CashMachineView
+
+The `CashMachineView.client.lua` file demonstrates pure client-side feedback:
+
+### Features:
+- Uses CollectionService to find all "CashMachine" tagged instances
+- Connects to ProximityPrompt.Triggered event
+- Emits particles and plays sound immediately
+- No server communication required
+
+### Pattern Used:
+```lua
+proximityPrompt.Triggered:Connect(function(player: Player)
+	-- Read particle rate and emit
+	local particleCount = particleEmitter.Rate
+	particleEmitter:Emit(particleCount)
+
+	-- Play sound
+	sound:Play()
+end)
+```
+
+## Best Practices
+
+### 1. Use CollectionService
+
+Tag instances in the Workspace or UI and use CollectionService to find them:
+
+```lua
+local CollectionService = game:GetService("CollectionService")
+
+for _, instance in ipairs(CollectionService:GetTagged("YourTag")) do
+	setupInstance(instance)
+end
+```
+
+### 2. Use WaitForChild
+
+Always wait for children to exist, as they may not be ready immediately:
+
+```lua
+local button = instance:WaitForChild("Button")
+local sound = button:WaitForChild("ClickSound")
+```
+
+### 3. Spawn Setup Functions
+
+Use `task.spawn` to avoid blocking when setting up multiple instances:
+
+```lua
+for _, instance in ipairs(CollectionService:GetTagged(TAG_NAME)) do
+	task.spawn(function()
+		setupInstance(instance)
+	end)
+end
+```
+
+### 4. Type Safety
+
+Always use `--!strict` and type your variables:
+
+```lua
+local proximityPrompt = base:WaitForChild("ProximityPrompt") :: ProximityPrompt
+local sound = base:WaitForChild("Sound") :: Sound
+```
+
+### 5. Immediate Feedback
+
+Provide instant visual feedback before server confirmation:
+
+```lua
+button.Activated:Connect(function()
+	-- Immediate feedback
+	button.BackgroundColor3 = Color3.new(0, 1, 0)
+
+	-- Send to server
+	intent:FireServer("Purchase", itemId)
+
+	-- Wait for confirmation (in a separate listener)
+	-- confirmEvent.OnClientEvent:Connect(function(success)
+	--     if success then
+	--         button.Text = "Purchased!"
+	--     else
+	--         button.BackgroundColor3 = Color3.new(1, 0, 0)
+	--     end
+	-- end)
+end)
+```
+
+## Common Patterns
+
+### Proximity Prompt Interaction
+
+```lua
+local proximityPrompt = instance:WaitForChild("ProximityPrompt") :: ProximityPrompt
+
+proximityPrompt.Triggered:Connect(function(player: Player)
+	-- Handle interaction
+	print(player.Name .. " interacted with " .. instance.Name)
+end)
+```
+
+### Button Click Handler
+
+```lua
+local button = screenGui:WaitForChild("Button") :: TextButton
+
+button.Activated:Connect(function()
+	-- Handle click
+	print("Button clicked!")
+end)
+```
+
+### State Observation
+
+```lua
+-- Listen for state changes from server
+local stateEvent = ReplicatedStorage:WaitForChild("Shared")
+	:WaitForChild("Events")
+	:WaitForChild("StateUpdate") :: RemoteEvent
+
+stateEvent.OnClientEvent:Connect(function(newState: any)
+	-- Update UI based on new state
+	updateDisplay(newState)
+end)
+```
+
+## Relationship to Models and Controllers
+
+### Views → Controllers
+- Views **send intents** to controllers via RemoteEvents
+- Views **never directly** modify Models
+- Communication is always through RemoteEvents
+
+### Views ← Models
+- Views **observe** state changes broadcast by Models
+- Views **update** visual elements based on authoritative server state
+
+### Complete Flow Example
+
+```
+1. User clicks button (View provides immediate feedback)
+2. View fires intent: PurchaseIntent:FireServer("BuySword", "FireSword")
+3. Controller validates and updates Model
+4. Model broadcasts state change to all clients
+5. View receives broadcast and updates UI with final state
+```
+
+## Next Steps
+
+After creating your view:
+
+1. **Create a Controller** (`src/server/controllers/`) if server validation is needed
+2. **Create a Model** (`src/server/models/`) to store authoritative state
+3. **Test the flow** end-to-end with user interactions
+
+See the main [README.md](README.md) for the complete MVC architecture overview.

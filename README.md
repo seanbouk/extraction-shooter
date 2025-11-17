@@ -1,6 +1,123 @@
 # Roblox Template
 
-A starter template for Roblox development using Rojo, Claude Code, and the Roblox MCP server.
+An MVC-based starter template for Roblox game development with automatic DataStore synchronization. This template uses Rojo for code management, Claude Code for AI-assisted development, and the Roblox MCP server for direct Studio integration.
+
+## MVC Architecture Overview
+
+This template implements a strict Model-View-Controller pattern with automatic state persistence:
+
+- **Models** (server-side): Authoritative game state that automatically syncs to DataStore
+- **Views** (client-side): LocalScripts that provide responsive UI and wait for server confirmation
+- **Controllers** (server-side): Listen to intents via RemoteEvents, validate, and update Models
+
+### Data Flow Diagram
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                         USER INTERACTION                             │
+└────────────────────────────┬────────────────────────────────────────┘
+                             │
+                             ▼
+                    ┌────────────────┐
+                    │  View (Client) │  ← LocalScript targeting tagged
+                    │                │    objects in Workspace/UI
+                    └───┬────────┬───┘
+                        │        │
+          Immediate     │        │ Send intent via
+          feedback      │        │ RemoteEvent
+          (visual)      │        │
+                        │        ▼
+                        │  ┌──────────────────┐
+                        │  │ Controller       │  ← Listens to RemoteEvents
+                        │  │ (Server)         │    Validates request
+                        │  └────────┬─────────┘
+                        │           │
+                        │           ▼
+                        │  ┌──────────────────┐
+                        │  │ Model (Server)   │  ← Authoritative state
+                        │  │                  │
+                        │  └────┬─────────┬───┘
+                        │       │         │
+                        │       │         └─────────► DataStore
+                        │       │                     (auto-sync)
+                        │       ▼
+                        │  ┌──────────────────┐
+                        │  │ State Broadcast  │  ← RemoteEvent to clients
+                        │  └────────┬─────────┘
+                        │           │
+                        │           ▼
+                        └──────► View Updates  ← Visual state change
+                                (Client)         after server confirmation
+```
+
+### Data Flow Steps
+
+1. **User Interaction**: User clicks a button, interacts with a 3D object, etc.
+2. **Immediate Feedback**: View provides instant visual feedback (button animation, hover effect)
+3. **Intent Sent**: View fires RemoteEvent expressing user intent (not a command)
+4. **Server Validation**: Controller receives intent, validates permissions/rules
+5. **Model Update**: Controller updates the appropriate Model(s)
+6. **Auto-Sync**: Model change triggers automatic DataStore synchronization
+7. **Broadcast**: Model broadcasts state change to relevant clients
+8. **View Update**: Views receive confirmation and update visual state accordingly
+
+## MVC Components
+
+### Models (src/server/)
+
+Models represent authoritative game state and live exclusively on the server:
+
+- Single source of truth for all game data
+- Automatically sync changes to DataStore
+- Broadcast state changes to clients
+- Examples: PlayerInventory, GameSettings, WorldState
+
+### Views (src/client/)
+
+Views are LocalScripts that observe state and update visual elements:
+
+- Use CollectionService to target tagged objects in Workspace or UI
+- Provide immediate feedback for user interactions
+- Wait for server confirmation before showing state changes
+- Can target server-created objects (visible to all) or client-only objects
+- Examples: InventoryUI, ScoreboardDisplay, InteractableObject
+
+### Controllers (src/server/)
+
+Controllers handle business logic and orchestrate Model updates:
+
+- Listen to RemoteEvents expressing user intent
+- Validate requests (permissions, game rules, anti-cheat)
+- Update Models based on validated intents
+- Never directly manipulate Views
+- Examples: InventoryController, CombatController, ShopController
+
+## Key Principles
+
+### 1. Intents, Not Commands
+
+RemoteEvents express **what the user wants to do**, not direct commands:
+- Good: `RequestPurchaseItem`, `AttemptEquipWeapon`
+- Bad: `SetInventory`, `UpdatePlayerGold`
+
+### 2. Optimistic UI with Server Authority
+
+- **Immediate feedback**: Button animations, sound effects, loading states
+- **Wait for confirmation**: Inventory updates, score changes, state transitions
+- **Visual feedback**: Show loading/pending states while waiting for server
+
+### 3. Tagged Objects for Views
+
+Views use CollectionService tags to find their targets:
+- Workspace objects: `game:GetService("CollectionService"):GetTagged("ShopButton")`
+- UI elements: Tagged ScreenGuis, TextButtons, Frames, etc.
+- Supports both server-created and client-only objects
+
+### 4. Separation of Concerns
+
+- **Models**: Know nothing about Views or user input
+- **Views**: Know nothing about business logic or validation
+- **Controllers**: Bridge between user intent and state changes
 
 ## Project Architecture
 
@@ -100,17 +217,68 @@ Always start in this order:
 
 ## Development Workflow
 
+### Building an MVC Feature
+
+1. **Create the Model** (`src/server/models/`)
+   - Define the data structure as a ModuleScript (`.lua`)
+   - Implement DataStore sync logic
+   - Add broadcast methods for state changes
+   - Example: `PlayerInventory.lua`
+
+2. **Create the Controller** (`src/server/controllers/`)
+   - Create a Script (`.server.lua`) that listens to RemoteEvents
+   - Validate incoming requests
+   - Call Model methods to update state
+   - Example: `InventoryController.server.lua`
+
+3. **Create the View** (`src/client/views/`)
+   - Create a LocalScript (`.client.lua`) that targets tagged objects
+   - Use CollectionService to find UI/Workspace elements
+   - Provide immediate feedback for interactions
+   - Listen for state broadcasts and update visuals
+   - Example: `InventoryView.client.lua`
+
+4. **Create Visual Elements in Studio**
+   - Build UI in StarterGui or objects in Workspace
+   - Add CollectionService tags to elements the View will target
+   - Example: Tag a ScreenGui with "InventoryUI"
+
+5. **Connect with RemoteEvents** (`src/shared/events/`)
+   - Define RemoteEvents as intent names
+   - Place in ReplicatedStorage via `src/shared/`
+   - Example: `RequestPurchaseItem`, `AttemptEquipWeapon`
+
+### General Workflow
+
 1. Write code in your preferred editor in the `src/` directories
 2. Rojo will automatically sync your code changes to Studio
 3. Create visual elements (UI, workspace objects) directly in Studio
-4. Commit only code changes to git - Studio-created content stays in place file
+4. Tag elements with CollectionService for Views to find them
+5. Test with MCP (structural) and Play mode (behavioral)
+6. Commit only code changes to git - Studio-created content stays in place file
 
 ### File Naming Conventions
 
-- `.server.lua` - Creates a Script (server-side)
-- `.client.lua` - Creates a LocalScript (client-side)
-- `.lua` - Creates a ModuleScript
+- `.server.lua` - Creates a Script (server-side) - Use for Controllers
+- `.client.lua` - Creates a LocalScript (client-side) - Use for Views
+- `.lua` - Creates a ModuleScript - Use for Models and shared utilities
 - Folders become Folder instances in Roblox
+
+### Directory Structure Recommendation
+
+```
+src/
+├── server/
+│   ├── models/          # Game state (ModuleScripts)
+│   ├── controllers/     # Business logic (Scripts)
+│   └── services/        # Shared server utilities
+├── client/
+│   ├── views/           # UI and visual logic (LocalScripts)
+│   └── utilities/       # Client-side helpers
+└── shared/
+    ├── events/          # RemoteEvents/RemoteFunctions
+    └── constants/       # Shared configuration
+```
 
 ## Testing and Development Workflow
 

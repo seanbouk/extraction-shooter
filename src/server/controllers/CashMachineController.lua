@@ -9,35 +9,37 @@ setmetatable(CashMachineController, AbstractController)
 
 export type CashMachineController = typeof(setmetatable({}, CashMachineController)) & AbstractController.AbstractController
 
+local ACTIONS = {
+	Withdraw = function(inventory: any, amount: number, player: Player)
+		inventory:addGold(amount)
+		print(player.Name .. " withdrew " .. amount .. " gold. New balance: " .. inventory.gold)
+	end,
+	Deposit = function(inventory: any, amount: number, player: Player)
+		inventory:addGold(-amount)
+		print(player.Name .. " deposited " .. amount .. " gold. New balance: " .. inventory.gold)
+	end,
+}
+
 function CashMachineController.new(): CashMachineController
 	local self = AbstractController.new("CashMachineController") :: any
 	setmetatable(self, CashMachineController)
 
 	-- Set up event listener
 	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string, amount: number)
-		-- Validate action
-		if action ~= "Withdraw" and action ~= "Deposit" then
-			warn("Invalid action received from " .. player.Name .. ": " .. tostring(action))
-			return
-		end
-
 		-- Validate amount
-		if type(amount) ~= "number" or amount <= 0 then
+		if amount <= 0 then
 			warn("Invalid amount received from " .. player.Name .. ": " .. tostring(amount))
 			return
 		end
 
-		-- Get inventory model
-		local inventory = InventoryModel.get()
-
-		-- Handle actions
-		if action == "Withdraw" then
-			inventory:addGold(amount)
-			print(player.Name .. " withdrew " .. amount .. " gold. New balance: " .. inventory.gold)
-		elseif action == "Deposit" then
-			inventory:addGold(-amount)
-			print(player.Name .. " deposited " .. amount .. " gold. New balance: " .. inventory.gold)
+		-- Validate and execute action
+		local actionFunc = ACTIONS[action]
+		if not actionFunc then
+			warn("Invalid action received from " .. player.Name .. ": " .. tostring(action))
+			return
 		end
+
+		actionFunc(InventoryModel.get(), amount, player)
 	end)
 
 	print("CashMachineController initialized")

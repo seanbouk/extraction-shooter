@@ -307,7 +307,7 @@ function PurchaseController.new(): PurchaseController
 end
 ```
 
-### Multi-Action Controller
+### Multi-Action Controller (if/else pattern)
 
 For controllers handling multiple related actions:
 
@@ -328,12 +328,61 @@ function InventoryController.new(): InventoryController
 		elseif action == "Drop" then
 			local itemId = ...
 			inventory:dropItem(player, itemId)
+		else
+			warn("Unknown action: " .. action)
 		end
 	end)
 
 	return self :: InventoryController
 end
 ```
+
+### Multi-Action Controller (lookup table pattern)
+
+For better scalability, use a lookup table to define actions:
+
+```lua
+local ACTIONS = {
+	Withdraw = function(inventory: any, amount: number, player: Player)
+		inventory:addGold(amount)
+		print(player.Name .. " withdrew " .. amount .. " gold. New balance: " .. inventory.gold)
+	end,
+	Deposit = function(inventory: any, amount: number, player: Player)
+		inventory:addGold(-amount)
+		print(player.Name .. " deposited " .. amount .. " gold. New balance: " .. inventory.gold)
+	end,
+}
+
+function CashMachineController.new(): CashMachineController
+	local self = AbstractController.new("CashMachineController") :: any
+	setmetatable(self, CashMachineController)
+
+	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string, amount: number)
+		-- Validate amount
+		if amount <= 0 then
+			warn("Invalid amount received from " .. player.Name .. ": " .. tostring(amount))
+			return
+		end
+
+		-- Validate and execute action
+		local actionFunc = ACTIONS[action]
+		if not actionFunc then
+			warn("Invalid action received from " .. player.Name .. ": " .. tostring(action))
+			return
+		end
+
+		actionFunc(InventoryModel.get(), amount, player)
+	end)
+
+	return self :: CashMachineController
+end
+```
+
+**Benefits of lookup table pattern:**
+- Easy to add new actions - just add to the table
+- Each action fully encapsulates its behavior
+- Clean separation between validation and business logic
+- Very readable event handler
 
 ### Anti-Cheat Integration
 

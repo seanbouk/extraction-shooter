@@ -53,10 +53,7 @@ end
 
 -- Get or create a model instance for the given owner
 function AbstractModel.get(ownerId: string): AbstractModel
-	if instances[ownerId] == nil then
-		instances[ownerId] = AbstractModel.new(ownerId)
-	end
-	return instances[ownerId]
+	error("AbstractModel.get() should not be called directly. Use a concrete model class instead.")
 end
 
 -- Remove a model instance for the given owner (cleanup)
@@ -84,11 +81,11 @@ function AbstractModel:fire(scope: "owner" | "all"): ()
 			if player then
 				self.remoteEvent:FireClient(player, self)
 			else
-				warn("Could not find player with UserId: " .. self.ownerId)
+				warn("Could not find player with UserId: " .. tostring(self.ownerId))
 			end
 		else
 			-- Not a valid UserId (probably a test), skip broadcasting
-			print("Skipping broadcast - ownerId is not a valid UserId: " .. self.ownerId)
+			print("Skipping broadcast - ownerId is not a valid UserId: " .. tostring(self.ownerId))
 		end
 	elseif scope == "all" then
 		-- Send to all players

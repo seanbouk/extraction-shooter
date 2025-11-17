@@ -6,9 +6,14 @@ local Players = game:GetService("Players")
 local modelsFolder = script.Parent
 local models = {}
 
+type ModelClass = {
+	get: (ownerId: string) -> any,
+	remove: (ownerId: string) -> (),
+}
+
 for _, moduleScript in modelsFolder:GetChildren() do
 	if moduleScript:IsA("ModuleScript") and not moduleScript.Name:find("^Abstract") then
-		local model = require(moduleScript)
+		local model = require(moduleScript) :: ModelClass
 		table.insert(models, model)
 		print("ModelRunner: Discovered model - " .. moduleScript.Name)
 	end

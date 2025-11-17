@@ -72,6 +72,8 @@ Models represent authoritative game state and live exclusively on the server:
 - Broadcast state changes to clients
 - Examples: PlayerInventory, GameSettings, WorldState
 
+**[📖 See the Model Development Guide](MODEL_GUIDE.md)** for step-by-step instructions on creating models. The guide includes a complete example using `InventoryModel`.
+
 ### Views (src/client/)
 
 Views are LocalScripts that observe state and update visual elements:

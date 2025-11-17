@@ -1,0 +1,6 @@
+# Roblox place files - these should stay in Studio only
+*.rbxl
+*.rbxlx
+
+# MCP local configuration
+.claude/settings.local.json

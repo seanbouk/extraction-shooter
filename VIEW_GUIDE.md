@@ -19,7 +19,7 @@ Views live exclusively on the client and are responsible for:
 
 ### Step 1: Understand View Patterns
 
-Views typically follow one of two patterns:
+Views typically follow one of three patterns:
 
 **Pattern A: Pure Client-Side Feedback**
 - No server communication
@@ -31,6 +31,12 @@ Views typically follow one of two patterns:
 - Provide immediate feedback
 - Wait for server confirmation before showing final state
 - Example: Purchasing items, equipping gear, collecting objects
+
+**Pattern C: State Observation and UI Updates**
+- Listen to Model state change RemoteEvents
+- Update UI based on authoritative server state
+- Filter updates by ownerId or other criteria
+- Example: Health bars, inventory displays, status indicators
 
 ### Step 2: Create Your View File
 
@@ -117,6 +123,56 @@ end)
 ```
 
 This demonstrates the key MVC principle: **immediate client feedback** followed by **server authority** through the intent system.
+
+## Example: StatusBarView
+
+The `StatusBarView.client.lua` file demonstrates **Pattern C: State Observation and UI Updates**:
+
+### Features:
+- Uses CollectionService to find all "StatusBar" tagged ScreenGui instances
+- Listens to `InventoryStateChanged` RemoteEvent from the server
+- Filters updates to only show the local player's inventory data
+- Updates UI TextLabels with gold and treasure amounts
+- No user interaction - purely observes and displays model state
+
+### Pattern Used:
+```lua
+-- At the top of the file
+local inventoryStateChanged = eventsFolder:WaitForChild("InventoryStateChanged") :: RemoteEvent
+local localPlayer = Players.LocalPlayer
+
+-- Type for the data received from server
+type InventoryData = {
+	ownerId: string,
+	gold: number,
+	treasure: number,
+}
+
+-- In the setup function
+local function updateLabels(gold: number, treasure: number)
+	goldLabel.Text = `💰 {gold}`
+	treasureLabel.Text = `💎 {treasure}`
+end
+
+-- Initialize with zero values
+updateLabels(0, 0)
+
+-- Listen for state changes from server
+inventoryStateChanged.OnClientEvent:Connect(function(inventoryData: InventoryData)
+	-- Only update if this is the local player's inventory
+	local localPlayerId = tostring(localPlayer.UserId)
+	if inventoryData.ownerId == localPlayerId then
+		updateLabels(inventoryData.gold, inventoryData.treasure)
+	end
+end)
+```
+
+### Key Concepts:
+- **State Observation**: Views listen to `[ModelName]StateChanged` RemoteEvents
+- **Filtering**: Views filter updates by `ownerId` to show only relevant data
+- **Type Safety**: Define types for the data structure received from the server
+- **UI Updates**: Update TextLabels, progress bars, or other UI elements with new state
+- **Separation**: No user input handling - purely displays authoritative server state
 
 ## Best Practices
 
@@ -209,19 +265,38 @@ button.Activated:Connect(function()
 end)
 ```
 
-### State Observation
+### State Observation (Listening to Model Changes)
 
 ```lua
--- Listen for state changes from server
-local stateEvent = ReplicatedStorage:WaitForChild("Shared")
-	:WaitForChild("Events")
-	:WaitForChild("StateUpdate") :: RemoteEvent
+local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
 
-stateEvent.OnClientEvent:Connect(function(newState: any)
-	-- Update UI based on new state
-	updateDisplay(newState)
+-- Define type for the data structure
+type ModelData = {
+	ownerId: string,
+	property1: number,
+	property2: string,
+}
+
+-- Listen for state changes from server model
+local modelStateChanged = ReplicatedStorage:WaitForChild("Shared")
+	:WaitForChild("Events")
+	:WaitForChild("YourModelStateChanged") :: RemoteEvent
+
+modelStateChanged.OnClientEvent:Connect(function(modelData: ModelData)
+	-- Filter: Only process updates for the local player
+	if modelData.ownerId == tostring(localPlayer.UserId) then
+		-- Update UI based on new authoritative state
+		updateDisplay(modelData)
+	end
 end)
 ```
+
+**Key Points:**
+- Models broadcast state via `[ModelName]StateChanged` RemoteEvents
+- Views filter updates by `ownerId` to show only relevant data
+- Define types matching the server-side model structure
+- Use this pattern for any UI that displays model state (health, inventory, etc.)
 
 ## Relationship to Models and Controllers
 

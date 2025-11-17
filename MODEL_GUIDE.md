@@ -19,11 +19,12 @@ All models in this project follow an inheritance pattern based on `AbstractModel
 
 All models inherit from `AbstractModel.lua` which provides:
 
-- **`new(ownerId: string)`**: Constructor for creating new instances with an owner identifier
+- **`new(modelName: string, ownerId: string)`**: Constructor for creating new instances with model name and owner identifier
 - **`get(ownerId: string)`**: Static method to get or create an instance for a specific owner
 - **`remove(ownerId: string)`**: Static method to remove an instance (used for cleanup)
-- **`fire()`**: Debug method that prints all instance properties
+- **`fire(scope: "owner" | "all")`**: Broadcasts model state to clients and prints debug output
 - **`ownerId: string`**: Property storing the unique identifier for the model owner
+- **`remoteEvent: RemoteEvent`**: Auto-created RemoteEvent for state broadcasting (named `[ModelName]StateChanged`)
 
 ### Step 2: Create Your Model File
 
@@ -47,7 +48,7 @@ export type YourModel = typeof(setmetatable({} :: {
 local instances: { [string]: YourModel } = {}
 
 function YourModel.new(ownerId: string): YourModel
-	local self = AbstractModel.new(ownerId) :: any
+	local self = AbstractModel.new("YourModel", ownerId) :: any
 	setmetatable(self, YourModel)
 
 	-- Initialize your properties
@@ -99,7 +100,7 @@ The `& AbstractModel.AbstractModel` ensures proper type inheritance and eliminat
 
 ```lua
 function YourModel.new(ownerId: string): YourModel
-	local self = AbstractModel.new(ownerId) :: any
+	local self = AbstractModel.new("YourModel", ownerId) :: any
 	setmetatable(self, YourModel)
 
 	-- Initialize properties
@@ -109,7 +110,9 @@ end
 ```
 
 **Important**:
-- Pass `ownerId` to `AbstractModel.new(ownerId)`
+- Pass the model name (e.g., `"YourModel"`) as the first parameter to `AbstractModel.new()`
+- This creates a RemoteEvent named `YourStateChanged` in `ReplicatedStorage/Shared/Events/`
+- Pass `ownerId` as the second parameter
 - Cast `AbstractModel.new()` to `any` to allow metatable manipulation without type errors
 
 ### Step 4: Implement Per-Owner Registry Pattern
@@ -141,15 +144,73 @@ local playerModel = YourModel.get(tostring(player.UserId))
 - Proper cleanup via `remove()` prevents memory leaks
 - Universal pattern works for players and other game entities
 
+### Step 5: Broadcasting State Changes to Clients
+
+Models automatically broadcast their state to clients using the `fire()` method. Every model method that changes state should call `fire()` with an explicit scope:
+
+```lua
+function YourModel:updateProperty(newValue): ()
+	self.propertyName = newValue
+	self:fire("owner")  -- Broadcast to owning player only
+end
+
+function YourModel:updatePublicProperty(newValue): ()
+	self.publicProperty = newValue
+	self:fire("all")  -- Broadcast to all connected players
+end
+```
+
+#### Broadcast Scopes
+
+- **`"owner"`**: Sends state only to the owning player using `FireClient(player, modelData)`
+  - Use for private data: inventory, quest progress, personal stats
+  - Most common for player-specific models
+
+- **`"all"`**: Sends state to all connected players using `FireAllClients(modelData)`
+  - Use for public data: equipped weapons, appearance, health (visible to others)
+  - Use when other players need to see the change
+
+**Important**: The `scope` parameter is **required**. There is no default to force explicit decisions about data visibility.
+
+#### Example: Private vs Public Data
+
+```lua
+-- Private: Only the player should see their gold
+function InventoryModel:addGold(amount: number): ()
+	self.gold += amount
+	self:fire("owner")
+end
+
+-- Public: Everyone should see the equipped weapon
+function AppearanceModel:setWeapon(weaponId: string): ()
+	self.equippedWeapon = weaponId
+	self:fire("all")
+end
+
+-- Public: Everyone should see health changes
+function HealthModel:takeDamage(amount: number): ()
+	self.health -= amount
+	self:fire("all")
+end
+```
+
+#### How It Works
+
+1. When `fire()` is called, AbstractModel broadcasts the **entire model state** to clients
+2. A RemoteEvent named `[ModelName]StateChanged` is automatically created in `ReplicatedStorage/Shared/Events/`
+3. Client-side Views listen to this RemoteEvent and update the UI
+4. Views filter updates by `ownerId` to display only relevant data
+
 ## Example: InventoryModel
 
-The `InventoryModel.lua` file in `src/server/models/` demonstrates the per-owner registry pattern:
+The `InventoryModel.lua` file in `src/server/models/` demonstrates the per-owner registry pattern and state broadcasting:
 
 ### Features:
 - Per-owner registry pattern via `get(ownerId)` method
 - Properties: `gold: number`, `treasure: number`, `ownerId: string`
-- Custom method: `addGold(amount: number)`
-- Inherits `fire()` from AbstractModel for debugging
+- Custom method: `addGold(amount: number)` - broadcasts with `"owner"` scope
+- State broadcasting: Automatically creates `InventoryStateChanged` RemoteEvent
+- Inherits `fire()` from AbstractModel for debugging and client synchronization
 - Cleanup method: `remove(ownerId)` for player lifecycle management
 
 ### Testing:
@@ -200,12 +261,15 @@ YourModel.remove("owner1")
 
 1. **Always use `--!strict`** for type safety
 2. **Include the `& AbstractModel.AbstractModel`** in your type definition to avoid warnings
-3. **Cast `AbstractModel.new(ownerId)` to `any`** in your constructor
-4. **Use per-owner registry pattern** for player-specific or entity-specific state
-5. **Use player.UserId as owner ID** for player-owned models: `tostring(player.UserId)`
-6. **Implement cleanup** in player lifecycle events (PlayerRemoving)
-7. **Use `fire()` for debugging** during development to inspect model state
-8. **Define clear types** for all properties and method parameters
+3. **Pass model name first** to `AbstractModel.new("YourModel", ownerId)` - this creates the RemoteEvent
+4. **Cast `AbstractModel.new()` to `any`** in your constructor
+5. **Use per-owner registry pattern** for player-specific or entity-specific state
+6. **Use player.UserId as owner ID** for player-owned models: `tostring(player.UserId)`
+7. **Implement cleanup** in player lifecycle events (PlayerRemoving)
+8. **Always call `fire()` with explicit scope** - `"owner"` for private data, `"all"` for public data
+9. **Think about data visibility** - Does this state need to be visible to other players?
+10. **Use `fire()` for debugging** during development to inspect model state
+11. **Define clear types** for all properties and method parameters
 
 ## Common Patterns
 
@@ -216,7 +280,7 @@ local PlayerInventory = {}
 local instances: { [string]: PlayerInventory } = {}
 
 function PlayerInventory.new(ownerId: string): PlayerInventory
-	local self = AbstractModel.new(ownerId) :: any
+	local self = AbstractModel.new("PlayerInventory", ownerId) :: any
 	setmetatable(self, PlayerInventory)
 
 	self.items = {}

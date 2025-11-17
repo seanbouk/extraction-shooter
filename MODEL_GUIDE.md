@@ -213,14 +213,13 @@ The `InventoryModel.lua` file in `src/server/models/` demonstrates the per-owner
 - Inherits `fire()` from AbstractModel for debugging and client synchronization
 - Cleanup method: `remove(ownerId)` for player lifecycle management
 
-### Testing:
-See `src/server/InventoryTest.server.lua` for a complete example of how to:
-- Get per-owner instances using different owner IDs
-- Modify properties independently for each owner
-- Call methods on specific instances
-- Use inherited `fire()` for debugging
-- Verify that different owners have different instances
-- Test cleanup with `remove()`
+### Usage in Production:
+Models are initialized automatically when players join:
+- `ControllerRunner.server.lua` creates inventories in the PlayerAdded handler
+- Controllers access instances via `InventoryModel.get(ownerId)`
+- Properties can be modified directly or through custom methods
+- State changes are automatically broadcast to clients via RemoteEvents
+- Cleanup happens automatically in the PlayerRemoving handler
 
 ## File Locations
 

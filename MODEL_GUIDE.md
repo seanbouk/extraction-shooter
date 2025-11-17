@@ -19,8 +19,11 @@ All models in this project follow an inheritance pattern based on `AbstractModel
 
 All models inherit from `AbstractModel.lua` which provides:
 
-- **`new()`**: Constructor for creating new instances
+- **`new(ownerId: string)`**: Constructor for creating new instances with an owner identifier
+- **`get(ownerId: string)`**: Static method to get or create an instance for a specific owner
+- **`remove(ownerId: string)`**: Static method to remove an instance (used for cleanup)
 - **`fire()`**: Debug method that prints all instance properties
+- **`ownerId: string`**: Property storing the unique identifier for the model owner
 
 ### Step 2: Create Your Model File
 
@@ -40,15 +43,28 @@ export type YourModel = typeof(setmetatable({} :: {
 	propertyName: propertyType,
 }, YourModel)) & AbstractModel.AbstractModel
 
--- Add constructor, singleton, or factory methods here
-function YourModel.new(): YourModel
-	local self = AbstractModel.new() :: any
+-- Registry to store instances per owner
+local instances: { [string]: YourModel } = {}
+
+function YourModel.new(ownerId: string): YourModel
+	local self = AbstractModel.new(ownerId) :: any
 	setmetatable(self, YourModel)
 
 	-- Initialize your properties
 	self.propertyName = defaultValue
 
 	return self :: YourModel
+end
+
+function YourModel.get(ownerId: string): YourModel
+	if instances[ownerId] == nil then
+		instances[ownerId] = YourModel.new(ownerId)
+	end
+	return instances[ownerId]
+end
+
+function YourModel.remove(ownerId: string): ()
+	instances[ownerId] = nil
 end
 
 -- Add your model's methods here
@@ -82,8 +98,8 @@ The `& AbstractModel.AbstractModel` ensures proper type inheritance and eliminat
 #### Constructor Pattern
 
 ```lua
-function YourModel.new(): YourModel
-	local self = AbstractModel.new() :: any
+function YourModel.new(ownerId: string): YourModel
+	local self = AbstractModel.new(ownerId) :: any
 	setmetatable(self, YourModel)
 
 	-- Initialize properties
@@ -92,70 +108,58 @@ function YourModel.new(): YourModel
 end
 ```
 
-**Important**: Cast `AbstractModel.new()` to `any` to allow metatable manipulation without type errors.
+**Important**:
+- Pass `ownerId` to `AbstractModel.new(ownerId)`
+- Cast `AbstractModel.new()` to `any` to allow metatable manipulation without type errors
 
-### Step 4: Choose Your Instance Pattern
+### Step 4: Implement Per-Owner Registry Pattern
 
-#### Option A: Regular Constructor (Multiple Instances)
-
-Use when you need multiple independent instances:
-
-```lua
-function YourModel.new(): YourModel
-	local self = AbstractModel.new() :: any
-	setmetatable(self, YourModel)
-
-	self.property = defaultValue
-
-	return self :: YourModel
-end
-
--- Usage:
-local instance1 = YourModel.new()
-local instance2 = YourModel.new()
-```
-
-#### Option B: Singleton Pattern (One Instance)
-
-Use when you need exactly one shared instance across the entire game:
+All models should use the per-owner registry pattern for proper instance management:
 
 ```lua
-local instance: YourModel? = nil
+-- Registry to store instances per owner
+local instances: { [string]: YourModel } = {}
 
-function YourModel.get(): YourModel
-	if instance == nil then
-		local self = AbstractModel.new() :: any
-		setmetatable(self, YourModel)
-
-		self.property = defaultValue
-
-		instance = self
+function YourModel.get(ownerId: string): YourModel
+	if instances[ownerId] == nil then
+		instances[ownerId] = YourModel.new(ownerId)
 	end
-
-	return instance :: YourModel
+	return instances[ownerId]
 end
 
--- Usage:
-local instance = YourModel.get()
+function YourModel.remove(ownerId: string): ()
+	instances[ownerId] = nil
+end
+
+-- Usage from a controller:
+local playerModel = YourModel.get(tostring(player.UserId))
 ```
+
+**Benefits:**
+- Each owner (player, team, etc.) gets their own model instance
+- Lazy initialization - instances created only when needed
+- Proper cleanup via `remove()` prevents memory leaks
+- Universal pattern works for players and other game entities
 
 ## Example: InventoryModel
 
-The `InventoryModel.lua` file in `src/server/models/` demonstrates the singleton pattern:
+The `InventoryModel.lua` file in `src/server/models/` demonstrates the per-owner registry pattern:
 
 ### Features:
-- Singleton pattern via `get()` method
-- Properties: `gold: number`, `treasure: number`
+- Per-owner registry pattern via `get(ownerId)` method
+- Properties: `gold: number`, `treasure: number`, `ownerId: string`
 - Custom method: `addGold(amount: number)`
 - Inherits `fire()` from AbstractModel for debugging
+- Cleanup method: `remove(ownerId)` for player lifecycle management
 
 ### Testing:
 See `src/server/InventoryTest.server.lua` for a complete example of how to:
-- Get the singleton instance
-- Modify properties
-- Call methods
+- Get per-owner instances using different owner IDs
+- Modify properties independently for each owner
+- Call methods on specific instances
 - Use inherited `fire()` for debugging
-- Verify singleton behavior
+- Verify that different owners have different instances
+- Test cleanup with `remove()`
 
 ## File Locations
 
@@ -174,62 +178,79 @@ local YourModel = require(script.Parent.models.YourModel)
 
 print("\n--- Testing YourModel ---")
 
-local instance = YourModel.new() -- or .get() for singleton
+-- Test per-owner instances
+local owner1 = YourModel.get("owner1")
+local owner2 = YourModel.get("owner2")
 
 -- Test your methods
-instance:yourMethod()
+owner1:yourMethod()
+
+-- Verify instances are different
+print("owner1 == owner2:", owner1 == owner2) -- Should be false
 
 -- Debug output
-instance:fire()
+owner1:fire()
+owner2:fire()
+
+-- Test cleanup
+YourModel.remove("owner1")
 ```
 
 ## Best Practices
 
 1. **Always use `--!strict`** for type safety
 2. **Include the `& AbstractModel.AbstractModel`** in your type definition to avoid warnings
-3. **Cast `AbstractModel.new()` to `any`** in your constructor
-4. **Use singleton pattern** for global game state (leaderboards, game settings)
-5. **Use regular constructors** for per-player or per-object state
-6. **Use `fire()` for debugging** during development to inspect model state
-7. **Define clear types** for all properties and method parameters
+3. **Cast `AbstractModel.new(ownerId)` to `any`** in your constructor
+4. **Use per-owner registry pattern** for player-specific or entity-specific state
+5. **Use player.UserId as owner ID** for player-owned models: `tostring(player.UserId)`
+6. **Implement cleanup** in player lifecycle events (PlayerRemoving)
+7. **Use `fire()` for debugging** during development to inspect model state
+8. **Define clear types** for all properties and method parameters
 
 ## Common Patterns
 
-### Per-Player Model
+### Per-Player Model with Registry
 
 ```lua
 local PlayerInventory = {}
+local instances: { [string]: PlayerInventory } = {}
 
-function PlayerInventory.new(player: Player): PlayerInventory
-	local self = AbstractModel.new() :: any
+function PlayerInventory.new(ownerId: string): PlayerInventory
+	local self = AbstractModel.new(ownerId) :: any
 	setmetatable(self, PlayerInventory)
 
-	self.player = player
 	self.items = {}
 
 	return self :: PlayerInventory
 end
+
+function PlayerInventory.get(ownerId: string): PlayerInventory
+	if instances[ownerId] == nil then
+		instances[ownerId] = PlayerInventory.new(ownerId)
+	end
+	return instances[ownerId]
+end
+
+function PlayerInventory.remove(ownerId: string): ()
+	instances[ownerId] = nil
+end
+
+-- Usage in controller:
+local inventory = PlayerInventory.get(tostring(player.UserId))
 ```
 
-### Global Game State
+### Player Lifecycle Management
+
+Add to `ControllerRunner.server.lua` to clean up models when players leave:
 
 ```lua
-local GameSettings = {}
-local instance: GameSettings? = nil
+local Players = game:GetService("Players")
 
-function GameSettings.get(): GameSettings
-	if instance == nil then
-		local self = AbstractModel.new() :: any
-		setmetatable(self, GameSettings)
-
-		self.roundTime = 300
-		self.maxPlayers = 12
-
-		instance = self
-	end
-
-	return instance :: GameSettings
-end
+Players.PlayerRemoving:Connect(function(player: Player)
+	local ownerId = tostring(player.UserId)
+	YourModel.remove(ownerId)
+	print("Cleaned up models for player " .. player.Name)
+end)
 ```
 
 ## Next Steps

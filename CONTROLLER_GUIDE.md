@@ -75,8 +75,8 @@ function YourController.new(): YourController
 			return
 		end
 
-		-- Update the model
-		local model = YourModel.get()
+		-- Update the model (per-player instance)
+		local model = YourModel.get(tostring(player.UserId))
 
 		if action == "SomeAction" then
 			model:performAction(...)
@@ -299,7 +299,7 @@ function PurchaseController.new(): PurchaseController
 
 	self.remoteEvent.OnServerEvent:Connect(function(player: Player, itemId: string)
 		-- Validate and process purchase
-		local shop = ShopModel.get()
+		local shop = ShopModel.get(tostring(player.UserId))
 		shop:purchaseItem(player, itemId)
 	end)
 
@@ -317,7 +317,7 @@ function InventoryController.new(): InventoryController
 	setmetatable(self, InventoryController)
 
 	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string, ...)
-		local inventory = InventoryModel.get()
+		local inventory = InventoryModel.get(tostring(player.UserId))
 
 		if action == "Equip" then
 			local itemId = ...
@@ -371,7 +371,7 @@ function CashMachineController.new(): CashMachineController
 			return
 		end
 
-		actionFunc(InventoryModel.get(), amount, player)
+		actionFunc(InventoryModel.get(tostring(player.UserId)), amount, player)
 	end)
 
 	return self :: CashMachineController
@@ -409,7 +409,7 @@ self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string, 
 	lastActionTime[player.UserId] = tick()
 
 	-- Process valid action
-	local model = YourModel.get()
+	local model = YourModel.get(tostring(player.UserId))
 	model:performAction(player, targetPosition)
 end)
 ```

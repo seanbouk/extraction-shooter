@@ -11,20 +11,28 @@ export type InventoryModel = typeof(setmetatable({} :: {
 	treasure: number,
 }, InventoryModel)) & AbstractModel.AbstractModel
 
-local instance: InventoryModel? = nil
+-- Registry to store inventory instances per owner
+local instances: { [string]: InventoryModel } = {}
 
-function InventoryModel.get(): InventoryModel
-	if instance == nil then
-		local self = AbstractModel.new() :: any
-		setmetatable(self, InventoryModel)
+function InventoryModel.new(ownerId: string): InventoryModel
+	local self = AbstractModel.new(ownerId) :: any
+	setmetatable(self, InventoryModel)
 
-		self.gold = 0
-		self.treasure = 0
+	self.gold = 0
+	self.treasure = 0
 
-		instance = self
+	return self :: InventoryModel
+end
+
+function InventoryModel.get(ownerId: string): InventoryModel
+	if instances[ownerId] == nil then
+		instances[ownerId] = InventoryModel.new(ownerId)
 	end
+	return instances[ownerId]
+end
 
-	return instance :: InventoryModel
+function InventoryModel.remove(ownerId: string): ()
+	instances[ownerId] = nil
 end
 
 function InventoryModel:addGold(amount: number): ()

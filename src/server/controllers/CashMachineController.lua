@@ -39,7 +39,7 @@ function CashMachineController.new(): CashMachineController
 			return
 		end
 
-		actionFunc(InventoryModel.get(), amount, player)
+		actionFunc(InventoryModel.get(tostring(player.UserId)), amount, player)
 	end)
 
 	print("CashMachineController initialized")

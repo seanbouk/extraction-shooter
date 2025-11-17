@@ -131,16 +131,28 @@ end
 
 ### Step 4: Initialize Your Controller
 
-Controllers are initialized by `ControllerRunner.server.lua`:
+Controllers are automatically initialized by `ControllerRunner.server.lua` in the `controllers/` folder. The ControllerRunner uses auto-discovery to find and initialize all controllers:
 
 ```lua
 --!strict
 
-local YourController = require(script.Parent.controllers.YourController)
+-- Auto-discover and initialize all controllers (skip Abstract)
+local controllersFolder = script.Parent
+local controllers = {}
 
--- Create controller instance
-YourController.new()
+for _, moduleScript in controllersFolder:GetChildren() do
+	if moduleScript:IsA("ModuleScript") and not moduleScript.Name:find("^Abstract") then
+		local Controller = require(moduleScript)
+		Controller.new()
+		table.insert(controllers, Controller)
+		print("ControllerRunner: Initialized controller - " .. moduleScript.Name)
+	end
+end
+
+print("ControllerRunner: All " .. #controllers .. " controller(s) initialized")
 ```
+
+**Important**: You don't need to manually add your controller to ControllerRunner. Simply create it in the `controllers/` folder and it will be automatically discovered and initialized.
 
 ## Example: CashMachineController
 
@@ -172,7 +184,7 @@ See `src/client/CashMachineTest.client.lua` for a complete example of how to:
 
 - **AbstractController**: `src/server/controllers/AbstractController.lua`
 - **Your Controllers**: `src/server/controllers/YourController.lua`
-- **Controller Initialization**: `src/server/ControllerRunner.server.lua`
+- **Controller Initialization**: `src/server/controllers/ControllerRunner.server.lua`
 - **RemoteEvents** (auto-created): `ReplicatedStorage/Shared/Events/`
 
 ## Client-Side Usage
@@ -466,12 +478,10 @@ yourIntent:FireServer("TestAction", testData)
 
 1. **Create** `YourController.lua` in `src/server/controllers/`
 2. **Extend** AbstractController using the pattern above
-3. **Add** initialization to `ControllerRunner.server.lua`:
-   ```lua
-   local YourController = require(script.Parent.controllers.YourController)
-   YourController.new()
-   ```
+3. **That's it!** ControllerRunner will automatically discover and initialize your controller
 4. **Test** from client using the auto-created RemoteEvent
+
+**Note**: Controllers are auto-discovered by ControllerRunner. Any ModuleScript in the `controllers/` folder (except those starting with "Abstract") will be automatically required and initialized.
 
 ## Relationship to Models and Views
 

@@ -304,17 +304,53 @@ local inventory = PlayerInventory.get(tostring(player.UserId))
 
 ### Player Lifecycle Management
 
-Add to `ControllerRunner.server.lua` to clean up models when players leave:
+Player lifecycle is automatically handled by `ModelRunner.server.lua` in the `models/` folder. The ModelRunner:
+
+- **Auto-discovers** all models in the folder (skips AbstractModel)
+- **Initializes** model instances when players join (PlayerAdded event)
+- **Broadcasts** initial state to new players using `fire("owner")`
+- **Cleans up** model instances when players leave (PlayerRemoving event)
 
 ```lua
+--!strict
+
 local Players = game:GetService("Players")
 
+-- Auto-discover and require all models (skip Abstract)
+local modelsFolder = script.Parent
+local models = {}
+
+for _, moduleScript in modelsFolder:GetChildren() do
+	if moduleScript:IsA("ModuleScript") and not moduleScript.Name:find("^Abstract") then
+		local model = require(moduleScript)
+		table.insert(models, model)
+		print("ModelRunner: Discovered model - " .. moduleScript.Name)
+	end
+end
+
+-- Handle player initialization
+Players.PlayerAdded:Connect(function(player: Player)
+	local ownerId = tostring(player.UserId)
+	print("ModelRunner: Initializing models for player " .. player.Name)
+
+	for _, model in models do
+		local instance = model.get(ownerId)
+		instance:fire("owner")
+	end
+end)
+
+-- Handle player cleanup
 Players.PlayerRemoving:Connect(function(player: Player)
 	local ownerId = tostring(player.UserId)
-	YourModel.remove(ownerId)
-	print("Cleaned up models for player " .. player.Name)
+	print("ModelRunner: Cleaning up models for player " .. player.Name)
+
+	for _, model in models do
+		model.remove(ownerId)
+	end
 end)
 ```
+
+**Important**: You don't need to manually add your model to ModelRunner. Simply create it in the `models/` folder and it will be automatically discovered and managed.
 
 ## Next Steps
 

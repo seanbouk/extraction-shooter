@@ -40,4 +40,18 @@ function InventoryModel:addGold(amount: number): ()
 	self:fire("owner")
 end
 
+function InventoryModel:spendGold(amount: number): boolean
+	if self.gold >= amount then
+		self.gold -= amount
+		self:fire("owner")
+		return true
+	end
+	return false
+end
+
+function InventoryModel:addTreasure(amount: number): ()
+	self.treasure += amount
+	self:fire("owner")
+end
+
 return InventoryModel

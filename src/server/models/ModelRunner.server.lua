@@ -1,6 +1,7 @@
 --!strict
 
 local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
 
 -- Initialize PersistenceServer before any models are used
 local PersistenceServer = require(script.Parent.Parent.services.PersistenceServer)
@@ -63,12 +64,35 @@ Players.PlayerAdded:Connect(function(player: Player)
 end)
 
 -- Handle player cleanup
-Players.PlayerRemoving:Connect(function(player: Player)
+local playerRemovingConnection = Players.PlayerRemoving:Connect(function(player: Player)
 	local ownerId = tostring(player.UserId)
 	print("ModelRunner: Cleaning up models for player " .. player.Name)
 
+	-- Flush all pending writes for this player before cleanup
+	PersistenceServer:flushPlayerWrites(ownerId)
+
 	for _, model in models do
 		model.remove(ownerId)
+	end
+end)
+
+-- Handle server shutdown as backup to ensure all data is saved
+game:BindToClose(function()
+	-- Skip in Studio to avoid blocking offline testing
+	if RunService:IsStudio() then
+		print("[ModelRunner] BindToClose skipped in Studio")
+		return
+	end
+
+	print("[ModelRunner] Server shutting down - disconnecting PlayerRemoving and flushing all players")
+
+	-- Disconnect PlayerRemoving to prevent duplicate saves during shutdown
+	playerRemovingConnection:Disconnect()
+
+	-- Flush all remaining player data
+	for _, player in Players:GetPlayers() do
+		local ownerId = tostring(player.UserId)
+		PersistenceServer:flushPlayerWrites(ownerId)
 	end
 end)
 

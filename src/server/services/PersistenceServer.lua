@@ -196,6 +196,18 @@ function PersistenceServer.init()
 		updateMaxTokens()
 	end)
 
+	-- Handle server shutdown to flush all pending writes
+	game:BindToClose(function()
+		-- Skip in Studio to avoid blocking offline testing
+		if RunService:IsStudio() then
+			print("[PersistenceServer] BindToClose skipped in Studio")
+			return
+		end
+
+		print("[PersistenceServer] Server shutting down - flushing all pending writes")
+		PersistenceServer:flushAllWrites()
+	end)
+
 	-- Start the background processor
 	startQueueProcessor()
 end
@@ -271,6 +283,77 @@ function PersistenceServer:queueWrite(modelName: string, ownerId: string, modelI
 			ownerId,
 			#writeQueue,
 			currentTokens
+		)
+	)
+end
+
+-- Flush all pending writes for a specific player
+-- Used when a player is leaving to ensure their data is saved
+function PersistenceServer:flushPlayerWrites(ownerId: string)
+	print(string.format("[PersistenceServer] Flushing writes for owner %s", ownerId))
+
+	local flushedCount = 0
+	local i = 1
+
+	-- Process all queued writes for this player
+	while i <= #writeQueue do
+		local request = writeQueue[i]
+
+		if request.ownerId == ownerId then
+			-- Remove from queue
+			table.remove(writeQueue, i)
+
+			-- Process immediately (skip token limiting for critical saves)
+			processWrite(request)
+			flushedCount = flushedCount + 1
+
+			-- Don't increment i since we removed an element
+		else
+			i = i + 1
+		end
+	end
+
+	print(string.format("[PersistenceServer] Flushed %d write(s) for owner %s", flushedCount, ownerId))
+end
+
+-- Flush all pending writes
+-- Used during server shutdown to ensure no data is lost
+function PersistenceServer:flushAllWrites()
+	local queueSize = #writeQueue
+	print(string.format("[PersistenceServer] Flushing all writes (%d items in queue)", queueSize))
+
+	local startTime = os.clock()
+	local successCount = 0
+	local failCount = 0
+
+	-- Process all queued writes
+	while #writeQueue > 0 do
+		local request = table.remove(writeQueue, 1)
+
+		-- Process immediately (skip token limiting for critical saves)
+		local success = processWrite(request)
+
+		if success then
+			successCount = successCount + 1
+		else
+			failCount = failCount + 1
+		end
+
+		-- Check if we're running out of time (BindToClose has 30 second limit)
+		local elapsedTime = os.clock() - startTime
+		if elapsedTime > 28 then
+			warn(string.format("[PersistenceServer] Approaching BindToClose timeout! %d items remaining", #writeQueue))
+			break
+		end
+	end
+
+	local totalTime = os.clock() - startTime
+	print(
+		string.format(
+			"[PersistenceServer] Flush complete: %d succeeded, %d failed, %.2fs elapsed",
+			successCount,
+			failCount,
+			totalTime
 		)
 	)
 end

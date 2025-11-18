@@ -15,10 +15,21 @@ type ModelClass = {
 	remove: (ownerId: string) -> (),
 }
 
+type ModelInfo = {
+	class: ModelClass,
+	name: string,
+}
+
+local modelInfos: { ModelInfo } = {}
+
 for _, moduleScript in modelsFolder:GetChildren() do
 	if moduleScript:IsA("ModuleScript") and not moduleScript.Name:find("^Abstract") then
 		local model = require(moduleScript) :: ModelClass
 		table.insert(models, model)
+		table.insert(modelInfos, {
+			class = model,
+			name = moduleScript.Name,
+		})
 		print("ModelRunner: Discovered model - " .. moduleScript.Name)
 	end
 end
@@ -28,12 +39,20 @@ Players.PlayerAdded:Connect(function(player: Player)
 	local ownerId = tostring(player.UserId)
 	print("ModelRunner: Initializing models for player " .. player.Name)
 
-	for _, model in models do
-		-- Get or create model instance for this player
-		local instance = model.get(ownerId)
+	for _, modelInfo in modelInfos do
+		-- Load data from DataStore for this model
+		local loadedData = PersistenceManager:loadModel(modelInfo.name, ownerId)
 
-		-- Broadcast initial state to the player
-		instance:fire("owner")
+		-- Get or create model instance for this player (with defaults)
+		local instance = modelInfo.class.get(ownerId)
+
+		-- Apply loaded data if it exists (overwrites defaults)
+		if loadedData then
+			instance:_applyLoadedData(loadedData)
+		end
+
+		-- Broadcast initial state to the player (skip persistence to avoid overwriting)
+		instance:fire("owner", true)
 	end
 end)
 

@@ -65,14 +65,39 @@ function AbstractModel.remove(ownerId: string): ()
 	instances[ownerId] = nil
 end
 
-function AbstractModel:fire(scope: "owner" | "all"): ()
+-- Apply loaded data to the model instance (private method called by ModelRunner)
+function AbstractModel:_applyLoadedData(loadedData: { [string]: any }?): ()
+	if not loadedData then
+		return
+	end
+
+	-- Apply each field from loaded data to the model instance
+	for key, value in pairs(loadedData) do
+		-- Skip internal metadata fields and methods
+		if not key:match("^_") and type(value) ~= "function" then
+			self[key] = value
+		end
+	end
+
+	print(
+		string.format(
+			"[AbstractModel] Applied loaded data to %s (owner: %s)",
+			self._modelName,
+			self.ownerId
+		)
+	)
+end
+
+function AbstractModel:fire(scope: "owner" | "all", skipPersistence: boolean?): ()
 	-- Validate scope parameter
 	if scope ~= "owner" and scope ~= "all" then
 		error("fire() scope must be 'owner' or 'all', got: " .. tostring(scope))
 	end
 
-	-- Queue persistence write
-	PersistenceManager:queueWrite(self._modelName, self.ownerId, self)
+	-- Queue persistence write (unless explicitly skipped)
+	if not skipPersistence then
+		PersistenceManager:queueWrite(self._modelName, self.ownerId, self)
+	end
 
 	print("=== Firing " .. tostring(self) .. " (scope: " .. scope .. ") ===")
 	for key, value in pairs(self) do

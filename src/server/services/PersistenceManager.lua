@@ -10,6 +10,8 @@ local MAX_BUDGET_TOKENS = 50 -- Max tokens available (safety margin from 60)
 local TOKEN_REGENERATION_RATE = 1 -- Tokens per second
 local MINIMUM_WAIT_BETWEEN_WRITES = 0.1 -- Wait even when tokens available
 local QUEUE_WARNING_THRESHOLD = 100 -- Warn if queue gets too large
+local LOAD_RETRY_ATTEMPTS = 3 -- Number of retry attempts for loading
+local LOAD_RETRY_DELAYS = { 0.5, 1, 2 } -- Exponential backoff delays (seconds)
 
 -- Types
 type WriteRequest = {
@@ -149,6 +151,10 @@ function PersistenceManager.init()
 			SetAsync = function()
 				warn("[PersistenceManager] Dummy SetAsync called - DataStore not available")
 			end,
+			GetAsync = function()
+				warn("[PersistenceManager] Dummy GetAsync called - DataStore not available")
+				return nil -- Simulate new player with no saved data
+			end,
 		} :: any
 	end
 
@@ -157,6 +163,72 @@ function PersistenceManager.init()
 
 	-- Start the background processor
 	startQueueProcessor()
+end
+
+-- Load a model's data from DataStore with retry logic
+function PersistenceManager:loadModel(modelName: string, ownerId: string): { [string]: any }?
+	local key = modelName .. "_" .. ownerId
+
+	-- Try loading with retry logic
+	for attempt = 1, LOAD_RETRY_ATTEMPTS do
+		local success, result = pcall(function()
+			return dataStore:GetAsync(key)
+		end)
+
+		if success then
+			if result then
+				print(
+					string.format(
+						"[PersistenceManager] ✓ Loaded %s for owner %s",
+						modelName,
+						ownerId
+					)
+				)
+				return result
+			else
+				-- No data found (new player)
+				print(
+					string.format(
+						"[PersistenceManager] No saved data for %s (owner: %s) - using defaults",
+						modelName,
+						ownerId
+					)
+				)
+				return nil
+			end
+		else
+			-- Load failed
+			if attempt < LOAD_RETRY_ATTEMPTS then
+				local delay = LOAD_RETRY_DELAYS[attempt]
+				warn(
+					string.format(
+						"[PersistenceManager] Failed to load %s for owner %s (attempt %d/%d): %s - retrying in %.1fs",
+						modelName,
+						ownerId,
+						attempt,
+						LOAD_RETRY_ATTEMPTS,
+						tostring(result),
+						delay
+					)
+				)
+				task.wait(delay)
+			else
+				-- Final attempt failed
+				warn(
+					string.format(
+						"[PersistenceManager] ✗ Failed to load %s for owner %s after %d attempts: %s - using defaults",
+						modelName,
+						ownerId,
+						LOAD_RETRY_ATTEMPTS,
+						tostring(result)
+					)
+				)
+				return nil
+			end
+		end
+	end
+
+	return nil
 end
 
 -- Queue a write request

@@ -52,12 +52,19 @@ This template implements a strict Model-View-Controller pattern with automatic s
 
 ### Data Flow Steps
 
+**On Player Join:**
+1. **Player Joins**: PlayerAdded event fires
+2. **Auto-Load**: PersistenceManager loads saved data from DataStore (or uses defaults for new players)
+3. **Model Initialization**: Models are created and loaded data is applied
+4. **Initial Broadcast**: Model broadcasts initial state to the player
+
+**During Gameplay:**
 1. **User Interaction**: User clicks a button, interacts with a 3D object, etc.
 2. **Immediate Feedback**: View provides instant visual feedback (button animation, hover effect)
 3. **Intent Sent**: View fires RemoteEvent expressing user intent (not a command)
 4. **Server Validation**: Controller receives intent, validates permissions/rules
 5. **Model Update**: Controller updates the appropriate Model(s)
-6. **Auto-Sync**: Model change triggers automatic DataStore synchronization
+6. **Auto-Persist**: Model change triggers automatic DataStore write (queued with rate limiting)
 7. **Broadcast**: Model broadcasts state change to relevant clients
 8. **View Update**: Views receive confirmation and update visual state accordingly
 
@@ -68,6 +75,7 @@ This template implements a strict Model-View-Controller pattern with automatic s
 Models represent authoritative game state and live exclusively on the server:
 
 - Single source of truth for all game data
+- Automatically load from DataStore when player joins (via PersistenceManager)
 - Automatically persist to DataStore when state changes (via PersistenceManager)
 - Broadcast state changes to clients
 - Examples: PlayerInventory, GameSettings, WorldState

@@ -16,22 +16,51 @@ type ModelClass = {
 	remove: (ownerId: string) -> (),
 }
 
+type ModelScope = "User" | "Server"
+
 type ModelInfo = {
 	class: ModelClass,
 	name: string,
+	scope: ModelScope,
 }
 
 local modelInfos: { ModelInfo } = {}
 
-for _, moduleScript in modelsFolder:GetChildren() do
-	if moduleScript:IsA("ModuleScript") and not moduleScript.Name:find("^Abstract") then
-		local model = require(moduleScript) :: ModelClass
-		table.insert(models, model)
-		table.insert(modelInfos, {
-			class = model,
-			name = moduleScript.Name,
-		})
-		print("ModelRunner: Discovered model - " .. moduleScript.Name)
+-- Helper function to discover models in a folder with a specific scope
+local function discoverModelsInFolder(folder: Instance, scope: ModelScope)
+	for _, moduleScript in folder:GetChildren() do
+		if moduleScript:IsA("ModuleScript") and not moduleScript.Name:find("^Abstract") then
+			local model = require(moduleScript) :: ModelClass
+			table.insert(models, model)
+			table.insert(modelInfos, {
+				class = model,
+				name = moduleScript.Name,
+				scope = scope,
+			})
+			print("ModelRunner: Discovered " .. scope .. "-scoped model - " .. moduleScript.Name)
+		end
+	end
+end
+
+-- Discover User-scoped models
+local userFolder = modelsFolder:FindFirstChild("user")
+if userFolder then
+	discoverModelsInFolder(userFolder, "User")
+end
+
+-- Discover Server-scoped models
+local serverFolder = modelsFolder:FindFirstChild("server")
+if serverFolder then
+	discoverModelsInFolder(serverFolder, "Server")
+end
+
+-- Initialize Server-scoped models once (ephemeral, shared by all players)
+print("ModelRunner: Initializing Server-scoped models")
+for _, modelInfo in modelInfos do
+	if modelInfo.scope == "Server" then
+		-- Initialize with ownerId "SERVER" (no persistence)
+		local instance = modelInfo.class.get("SERVER")
+		print("ModelRunner: Initialized Server-scoped model - " .. modelInfo.name)
 	end
 end
 
@@ -41,25 +70,28 @@ Players.PlayerAdded:Connect(function(player: Player)
 	print("ModelRunner: Initializing models for player " .. player.Name)
 
 	for _, modelInfo in modelInfos do
-		-- Load data from DataStore for this model
-		local success, loadedData = PersistenceServer:loadModel(modelInfo.name, ownerId)
+		-- Only initialize User-scoped models per player
+		if modelInfo.scope == "User" then
+			-- Load data from DataStore for this model
+			local success, loadedData = PersistenceServer:loadModel(modelInfo.name, ownerId)
 
-		-- If load failed, kick the player to prevent data loss
-		if not success then
-			player:Kick("Roblox servers are busy right now. Please rejoin to try again. Your progress is safe!")
-			return -- Stop processing this player
+			-- If load failed, kick the player to prevent data loss
+			if not success then
+				player:Kick("Roblox servers are busy right now. Please rejoin to try again. Your progress is safe!")
+				return -- Stop processing this player
+			end
+
+			-- Get or create model instance for this player (with defaults)
+			local instance = modelInfo.class.get(ownerId)
+
+			-- Apply loaded data if it exists (overwrites defaults)
+			if loadedData then
+				instance:_applyLoadedData(loadedData)
+			end
+
+			-- Don't fire initial state here - client will request when ready
+			-- This prevents race condition where RemoteEvent hasn't replicated yet
 		end
-
-		-- Get or create model instance for this player (with defaults)
-		local instance = modelInfo.class.get(ownerId)
-
-		-- Apply loaded data if it exists (overwrites defaults)
-		if loadedData then
-			instance:_applyLoadedData(loadedData)
-		end
-
-		-- Don't fire initial state here - client will request when ready
-		-- This prevents race condition where RemoteEvent hasn't replicated yet
 	end
 end)
 
@@ -71,8 +103,11 @@ local playerRemovingConnection = Players.PlayerRemoving:Connect(function(player:
 	-- Flush all pending writes for this player before cleanup
 	PersistenceServer:flushPlayerWrites(ownerId)
 
-	for _, model in models do
-		model.remove(ownerId)
+	-- Only remove User-scoped models (Server-scoped persist for server lifetime)
+	for _, modelInfo in modelInfos do
+		if modelInfo.scope == "User" then
+			modelInfo.class.remove(ownerId)
+		end
 	end
 end)
 

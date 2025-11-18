@@ -1,7 +1,7 @@
 --!strict
 
 local AbstractController = require(script.Parent.AbstractController)
-local InventoryModel = require(script.Parent.Parent.models.InventoryModel)
+local InventoryModel = require(script.Parent.Parent.models.user.InventoryModel)
 
 local BazaarController = {}
 BazaarController.__index = BazaarController

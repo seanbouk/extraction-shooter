@@ -13,27 +13,65 @@ All models in this project follow an inheritance pattern based on `AbstractModel
 - **AbstractModel**: Base class providing common functionality for all models
 - **Concrete Models** (e.g., InventoryModel): Extend AbstractModel and add specific game logic
 
+## Model Scopes
+
+Models can have different scopes that determine their lifecycle and ownership:
+
+### User-Scoped Models (`models/user/`)
+
+User-scoped models are **per-player** and **persistent** (saved to DataStore):
+
+- **Lifecycle**: Created when player joins, destroyed when player leaves
+- **Persistence**: Automatically saved to DataStore
+- **Owner ID**: Player's UserId (e.g., "123456789")
+- **Use Cases**: Inventory, quests, player settings, progress
+- **Example**: `InventoryModel` - each player has their own gold/treasure
+
+### Server-Scoped Models (`models/server/`)
+
+Server-scoped models are **per-server instance** and **ephemeral** (not saved):
+
+- **Lifecycle**: Created once when server starts, persists until server shutdown
+- **Persistence**: None - data resets when server restarts
+- **Owner ID**: Fixed string "SERVER"
+- **Use Cases**: Match state, server events, shared game state
+- **Example**: `ShrineModel` - shared by all players in the server
+
+### Choosing a Scope
+
+| Scope | Location | Persistent | Per-Player | Use For |
+|-------|----------|------------|------------|---------|
+| **User** | `models/user/` | ✅ Yes | ✅ Yes | Player inventory, progress, settings |
+| **Server** | `models/server/` | ❌ No | ❌ No | Match scores, timers, shared game state |
+
 ## Creating a New Model
 
 ### Step 1: Understand AbstractModel
 
 All models inherit from `AbstractModel.lua` which provides:
 
-- **`new(modelName: string, ownerId: string)`**: Constructor for creating new instances with model name and owner identifier
+- **`new(modelName: string, ownerId: string, scope: ModelScope)`**: Constructor for creating new instances with model name, owner identifier, and scope
 - **`get(ownerId: string)`**: Static method to get or create an instance for a specific owner
 - **`remove(ownerId: string)`**: Static method to remove an instance (used for cleanup)
 - **`fire(scope: "owner" | "all")`**: Broadcasts model state to clients and prints debug output
 - **`ownerId: string`**: Property storing the unique identifier for the model owner
 - **`remoteEvent: RemoteEvent`**: Auto-created RemoteEvent for state broadcasting (named `[ModelName]StateChanged`)
 
-### Step 2: Create Your Model File
+### Step 2: Determine Model Scope
 
-Create a new ModuleScript in `src/server/models/YourModel.lua`:
+Before creating your model, decide which scope it needs:
+
+- **User-Scoped**: Place in `src/server/models/user/YourModel.lua` and pass `"User"` to AbstractModel
+- **Server-Scoped**: Place in `src/server/models/server/YourModel.lua` and pass `"Server"` to AbstractModel
+
+### Step 3: Create Your Model File
+
+#### For User-Scoped Models (`models/user/YourModel.lua`):
 
 ```lua
 --!strict
 
-local AbstractModel = require(script.Parent.AbstractModel)
+local AbstractModel = require(script.Parent.Parent.AbstractModel)
 
 local YourModel = {}
 YourModel.__index = YourModel
@@ -48,7 +86,7 @@ export type YourModel = typeof(setmetatable({} :: {
 local instances: { [string]: YourModel } = {}
 
 function YourModel.new(ownerId: string): YourModel
-	local self = AbstractModel.new("YourModel", ownerId) :: any
+	local self = AbstractModel.new("YourModel", ownerId, "User") :: any
 	setmetatable(self, YourModel)
 
 	-- Initialize your properties
@@ -71,12 +109,68 @@ end
 -- Add your model's methods here
 function YourModel:yourMethod(): ()
 	-- Implementation
+	self:fire("owner") -- User-scoped models typically broadcast to owner
 end
 
 return YourModel
 ```
 
-### Step 3: Key Pattern Requirements
+#### For Server-Scoped Models (`models/server/YourModel.lua`):
+
+```lua
+--!strict
+
+local AbstractModel = require(script.Parent.Parent.AbstractModel)
+
+local YourModel = {}
+YourModel.__index = YourModel
+setmetatable(YourModel, AbstractModel)
+
+export type YourModel = typeof(setmetatable({} :: {
+	-- Define your model's properties here
+	propertyName: propertyType,
+}, YourModel)) & AbstractModel.AbstractModel
+
+-- Registry to store instances (typically just one with ownerId "SERVER")
+local instances: { [string]: YourModel } = {}
+
+function YourModel.new(ownerId: string): YourModel
+	local self = AbstractModel.new("YourModel", ownerId, "Server") :: any
+	setmetatable(self, YourModel)
+
+	-- Initialize your properties
+	self.propertyName = defaultValue
+
+	return self :: YourModel
+end
+
+function YourModel.get(ownerId: string): YourModel
+	if instances[ownerId] == nil then
+		instances[ownerId] = YourModel.new(ownerId)
+	end
+	return instances[ownerId]
+end
+
+function YourModel.remove(ownerId: string): ()
+	instances[ownerId] = nil
+end
+
+-- Add your model's methods here
+function YourModel:yourMethod(): ()
+	-- Implementation
+	self:fire("all") -- Server-scoped models typically broadcast to all
+end
+
+return YourModel
+```
+
+**Key Differences:**
+- Require path: `script.Parent.Parent.AbstractModel` (up two levels from `user/` or `server/`)
+- Scope parameter: `"User"` for user-scoped, `"Server"` for server-scoped
+- Access pattern: User-scoped uses player UserId, Server-scoped uses `"SERVER"`
+- Broadcast: User-scoped typically uses `"owner"`, Server-scoped typically uses `"all"`
+
+### Step 4: Key Pattern Requirements
 
 #### Inheritance Setup
 
@@ -100,7 +194,7 @@ The `& AbstractModel.AbstractModel` ensures proper type inheritance and eliminat
 
 ```lua
 function YourModel.new(ownerId: string): YourModel
-	local self = AbstractModel.new("YourModel", ownerId) :: any
+	local self = AbstractModel.new("YourModel", ownerId, "User") :: any
 	setmetatable(self, YourModel)
 
 	-- Initialize properties
@@ -113,6 +207,7 @@ end
 - Pass the model name (e.g., `"YourModel"`) as the first parameter to `AbstractModel.new()`
 - This creates a RemoteEvent named `YourStateChanged` in `ReplicatedStorage/Shared/Events/`
 - Pass `ownerId` as the second parameter
+- Pass the scope (`"User"` or `"Server"`) as the third parameter
 - Cast `AbstractModel.new()` to `any` to allow metatable manipulation without type errors
 
 ### Step 4: Implement Per-Owner Registry Pattern
@@ -134,8 +229,11 @@ function YourModel.remove(ownerId: string): ()
 	instances[ownerId] = nil
 end
 
--- Usage from a controller:
+-- Usage from a controller (User-scoped):
 local playerModel = YourModel.get(tostring(player.UserId))
+
+-- Usage from a controller (Server-scoped):
+local sharedModel = YourModel.get("SERVER")
 ```
 
 **Benefits:**
@@ -201,9 +299,11 @@ end
 3. Client-side Views listen to this RemoteEvent and update the UI
 4. Views filter updates by `ownerId` to display only relevant data
 
-## Example: InventoryModel
+## Examples
 
-The `InventoryModel.lua` file in `src/server/models/` demonstrates the per-owner registry pattern and state broadcasting:
+### Example 1: InventoryModel (User-Scoped)
+
+The `InventoryModel.lua` file in `src/server/models/user/` demonstrates a User-scoped model with per-owner registry pattern and state broadcasting:
 
 ### Features:
 - Per-owner registry pattern via `get(ownerId)` method
@@ -214,17 +314,39 @@ The `InventoryModel.lua` file in `src/server/models/` demonstrates the per-owner
 - Cleanup method: `remove(ownerId)` for player lifecycle management
 
 ### Usage in Production:
-Models are initialized automatically when players join:
-- `ControllerRunner.server.lua` creates inventories in the PlayerAdded handler
-- Controllers access instances via `InventoryModel.get(ownerId)`
+User-scoped models are initialized automatically when players join:
+- `ModelRunner.server.lua` creates inventories in the PlayerAdded handler
+- Controllers access instances via `InventoryModel.get(tostring(player.UserId))`
 - Properties can be modified directly or through custom methods
 - State changes are automatically broadcast to clients via RemoteEvents
 - Cleanup happens automatically in the PlayerRemoving handler
 
+### Example 2: ShrineModel (Server-Scoped)
+
+The `ShrineModel.lua` file in `src/server/models/server/` demonstrates a Server-scoped model:
+
+### Features:
+- Server-scoped (single instance shared by all players)
+- Properties: `treasure: number`, `userID: string`
+- Custom method: `donate(playerUserId: string, amount: number)` - broadcasts with `"all"` scope
+- State broadcasting: Automatically creates `ShrineStateChanged` RemoteEvent
+- Ephemeral: Data resets when server restarts (no DataStore persistence)
+- Access pattern: `ShrineModel.get("SERVER")` returns the shared instance
+
+### Usage in Production:
+Server-scoped models are initialized once when the server starts:
+- `ModelRunner.server.lua` creates the server instance on startup
+- Controllers access the shared instance via `ShrineModel.get("SERVER")`
+- All players interact with the same model instance
+- State changes broadcast to all clients via `fire("all")`
+- No cleanup on player leave (persists for server lifetime)
+
 ## File Locations
 
 - **AbstractModel**: `src/server/models/AbstractModel.lua`
-- **Your Models**: `src/server/models/YourModel.lua`
+- **ModelRunner**: `src/server/models/ModelRunner.server.lua`
+- **User-Scoped Models**: `src/server/models/user/YourModel.lua`
+- **Server-Scoped Models**: `src/server/models/server/YourModel.lua`
 - **Test Scripts**: `src/server/YourModelTest.server.lua`
 
 ## Testing Your Model
@@ -306,11 +428,13 @@ local inventory = PlayerInventory.get(tostring(player.UserId))
 
 Player lifecycle is automatically handled by `ModelRunner.server.lua` in the `models/` folder. The ModelRunner:
 
-- **Auto-discovers** all models in the folder (skips AbstractModel)
-- **Initializes** model instances when players join (PlayerAdded event)
-- **Loads** saved data from DataStore via PersistenceServer (kicks player if load fails to prevent data corruption)
+- **Auto-discovers** all models in `models/user/` and `models/server/` folders
+- **Server-scoped models**: Initialized once on server startup with ownerId "SERVER"
+- **User-scoped models**: Initialized when players join (PlayerAdded event)
+- **Loads** saved data from DataStore via PersistenceServer (User-scoped only; kicks player if load fails)
 - **Applies** loaded data to model instances (or uses defaults for new players)
-- **Cleans up** model instances when players leave (PlayerRemoving event)
+- **Cleans up** User-scoped model instances when players leave (PlayerRemoving event)
+- **Server-scoped models**: Persist for server lifetime (no per-player cleanup)
 
 ```lua
 --!strict
@@ -330,22 +454,50 @@ type ModelClass = {
 	remove: (ownerId: string) -> (),
 }
 
+type ModelScope = "User" | "Server"
+
 type ModelInfo = {
 	class: ModelClass,
 	name: string,
+	scope: ModelScope,
 }
 
 local modelInfos: { ModelInfo } = {}
 
-for _, moduleScript in modelsFolder:GetChildren() do
-	if moduleScript:IsA("ModuleScript") and not moduleScript.Name:find("^Abstract") then
-		local model = require(moduleScript) :: ModelClass
-		table.insert(models, model)
-		table.insert(modelInfos, {
-			class = model,
-			name = moduleScript.Name,
-		})
-		print("ModelRunner: Discovered model - " .. moduleScript.Name)
+-- Helper function to discover models in a folder with a specific scope
+local function discoverModelsInFolder(folder: Instance, scope: ModelScope)
+	for _, moduleScript in folder:GetChildren() do
+		if moduleScript:IsA("ModuleScript") and not moduleScript.Name:find("^Abstract") then
+			local model = require(moduleScript) :: ModelClass
+			table.insert(models, model)
+			table.insert(modelInfos, {
+				class = model,
+				name = moduleScript.Name,
+				scope = scope,
+			})
+			print("ModelRunner: Discovered " .. scope .. "-scoped model - " .. moduleScript.Name)
+		end
+	end
+end
+
+-- Discover User-scoped models
+local userFolder = modelsFolder:FindFirstChild("user")
+if userFolder then
+	discoverModelsInFolder(userFolder, "User")
+end
+
+-- Discover Server-scoped models
+local serverFolder = modelsFolder:FindFirstChild("server")
+if serverFolder then
+	discoverModelsInFolder(serverFolder, "Server")
+end
+
+-- Initialize Server-scoped models once (ephemeral, shared by all players)
+print("ModelRunner: Initializing Server-scoped models")
+for _, modelInfo in modelInfos do
+	if modelInfo.scope == "Server" then
+		local instance = modelInfo.class.get("SERVER")
+		print("ModelRunner: Initialized Server-scoped model - " .. modelInfo.name)
 	end
 end
 
@@ -355,25 +507,28 @@ Players.PlayerAdded:Connect(function(player: Player)
 	print("ModelRunner: Initializing models for player " .. player.Name)
 
 	for _, modelInfo in modelInfos do
-		-- Load data from DataStore for this model
-		local success, loadedData = PersistenceServer:loadModel(modelInfo.name, ownerId)
+		-- Only initialize User-scoped models per player
+		if modelInfo.scope == "User" then
+			-- Load data from DataStore for this model
+			local success, loadedData = PersistenceServer:loadModel(modelInfo.name, ownerId)
 
-		-- If load failed, kick the player to prevent data loss
-		if not success then
-			player:Kick("Roblox servers are busy right now. Please rejoin to try again. Your progress is safe!")
-			return -- Stop processing this player
+			-- If load failed, kick the player to prevent data loss
+			if not success then
+				player:Kick("Roblox servers are busy right now. Please rejoin to try again. Your progress is safe!")
+				return -- Stop processing this player
+			end
+
+			-- Get or create model instance for this player (with defaults)
+			local instance = modelInfo.class.get(ownerId)
+
+			-- Apply loaded data if it exists (overwrites defaults)
+			if loadedData then
+				instance:_applyLoadedData(loadedData)
+			end
+
+			-- Don't fire initial state here - client will request when ready
+			-- This prevents race condition where RemoteEvent hasn't replicated yet
 		end
-
-		-- Get or create model instance for this player (with defaults)
-		local instance = modelInfo.class.get(ownerId)
-
-		-- Apply loaded data if it exists (overwrites defaults)
-		if loadedData then
-			instance:_applyLoadedData(loadedData)
-		end
-
-		-- Don't fire initial state here - client will request when ready
-		-- This prevents race condition where RemoteEvent hasn't replicated yet
 	end
 end)
 
@@ -382,13 +537,16 @@ Players.PlayerRemoving:Connect(function(player: Player)
 	local ownerId = tostring(player.UserId)
 	print("ModelRunner: Cleaning up models for player " .. player.Name)
 
-	for _, model in models do
-		model.remove(ownerId)
+	-- Only remove User-scoped models (Server-scoped persist for server lifetime)
+	for _, modelInfo in modelInfos do
+		if modelInfo.scope == "User" then
+			modelInfo.class.remove(ownerId)
+		end
 	end
 end)
 ```
 
-**Important**: You don't need to manually add your model to ModelRunner. Simply create it in the `models/` folder and it will be automatically discovered and managed.
+**Important**: You don't need to manually add your model to ModelRunner. Simply create it in the `models/user/` or `models/server/` folder and it will be automatically discovered and managed.
 
 ## Next Steps
 

@@ -11,22 +11,26 @@ AbstractModel.__index = AbstractModel
 -- Registry to store model instances per owner
 local instances: { [string]: AbstractModel } = {}
 
--- Store the RemoteEvent for this model type (one per model class)
-local remoteEvent: RemoteEvent? = nil
+-- Store RemoteEvents for each model class (one per model class)
+local remoteEvents: { [string]: RemoteEvent } = {}
+
+type ModelScope = "User" | "Server"
 
 export type AbstractModel = typeof(setmetatable({} :: {
 	ownerId: string,
 	remoteEvent: RemoteEvent,
 	_modelName: string,
+	_scope: ModelScope,
 }, AbstractModel))
 
-function AbstractModel.new(modelName: string, ownerId: string): AbstractModel
+function AbstractModel.new(modelName: string, ownerId: string, scope: ModelScope): AbstractModel
 	local self = setmetatable({}, AbstractModel) :: any
 	self.ownerId = ownerId
 	self._modelName = modelName
+	self._scope = scope
 
-	-- Create RemoteEvent if it doesn't exist (only on first instance)
-	if remoteEvent == nil then
+	-- Create RemoteEvent if it doesn't exist for this model class
+	if remoteEvents[modelName] == nil then
 		-- Derive event name by removing "Model" suffix and adding "StateChanged"
 		local eventName = modelName:gsub("Model$", "") .. "StateChanged"
 
@@ -47,17 +51,19 @@ function AbstractModel.new(modelName: string, ownerId: string): AbstractModel
 			event.Parent = eventsFolder
 		end
 
-		remoteEvent = event :: RemoteEvent
+		remoteEvents[modelName] = event :: RemoteEvent
 
 		-- Set up handler for client-ready signals (only once per model class)
-		remoteEvent.OnServerEvent:Connect(function(player: Player)
+		remoteEvents[modelName].OnServerEvent:Connect(function(player: Player)
 			-- Client is signaling it's ready to receive initial state
 			local ownerId = tostring(player.UserId)
 
 			-- Get the model class from the modelName
 			-- We need to look it up in the concrete model's registry
 			-- This is called from AbstractModel, so we delegate to the concrete implementation
-			local modelModule = script.Parent:FindFirstChild(modelName)
+			-- Try both user/ and server/ folders
+			local modelModule = script.Parent:FindFirstChild("user"):FindFirstChild(modelName)
+				or script.Parent:FindFirstChild("server"):FindFirstChild(modelName)
 			if modelModule then
 				local success, model = pcall(require, modelModule)
 				if success and model.get then
@@ -78,7 +84,7 @@ function AbstractModel.new(modelName: string, ownerId: string): AbstractModel
 		end)
 	end
 
-	self.remoteEvent = remoteEvent :: RemoteEvent
+	self.remoteEvent = remoteEvents[modelName] :: RemoteEvent
 
 	return self
 end
@@ -122,8 +128,8 @@ function AbstractModel:fire(scope: "owner" | "all", skipPersistence: boolean?): 
 		error("fire() scope must be 'owner' or 'all', got: " .. tostring(scope))
 	end
 
-	-- Queue persistence write (unless explicitly skipped)
-	if not skipPersistence then
+	-- Queue persistence write (unless explicitly skipped or Server-scoped)
+	if not skipPersistence and self._scope ~= "Server" then
 		PersistenceServer:queueWrite(self._modelName, self.ownerId, self)
 	end
 

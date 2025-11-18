@@ -1,6 +1,6 @@
 --!strict
 
-local AbstractModel = require(script.Parent.AbstractModel)
+local AbstractModel = require(script.Parent.Parent.AbstractModel)
 
 local InventoryModel = {}
 InventoryModel.__index = InventoryModel
@@ -15,7 +15,7 @@ export type InventoryModel = typeof(setmetatable({} :: {
 local instances: { [string]: InventoryModel } = {}
 
 function InventoryModel.new(ownerId: string): InventoryModel
-	local self = AbstractModel.new("InventoryModel", ownerId) :: any
+	local self = AbstractModel.new("InventoryModel", ownerId, "User") :: any
 	setmetatable(self, InventoryModel)
 
 	self.gold = 0

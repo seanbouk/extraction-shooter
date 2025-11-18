@@ -49,7 +49,7 @@ Create a new ModuleScript in `src/server/controllers/YourController.lua`:
 --!strict
 
 local AbstractController = require(script.Parent.AbstractController)
-local YourModel = require(script.Parent.Parent.models.YourModel)
+local YourModel = require(script.Parent.Parent.models.user.YourModel) -- or .server.YourModel
 
 local YourController = {}
 YourController.__index = YourController
@@ -75,8 +75,11 @@ function YourController.new(): YourController
 			return
 		end
 
-		-- Update the model (per-player instance)
+		-- Update the model
+		-- For User-scoped models: get per-player instance
 		local model = YourModel.get(tostring(player.UserId))
+		-- For Server-scoped models: get shared instance
+		-- local model = YourModel.get("SERVER")
 
 		if action == "SomeAction" then
 			model:performAction(...)

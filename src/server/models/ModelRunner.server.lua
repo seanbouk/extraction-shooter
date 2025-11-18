@@ -2,6 +2,10 @@
 
 local Players = game:GetService("Players")
 
+-- Initialize PersistenceManager before any models are used
+local PersistenceManager = require(script.Parent.Parent.services.PersistenceManager)
+PersistenceManager.init()
+
 -- Auto-discover and require all models (skip Abstract)
 local modelsFolder = script.Parent
 local models = {}

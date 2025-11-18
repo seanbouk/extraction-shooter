@@ -68,7 +68,7 @@ This template implements a strict Model-View-Controller pattern with automatic s
 Models represent authoritative game state and live exclusively on the server:
 
 - Single source of truth for all game data
-- Automatically sync changes to DataStore
+- Automatically persist to DataStore when state changes (via PersistenceManager)
 - Broadcast state changes to clients
 - Examples: PlayerInventory, GameSettings, WorldState
 
@@ -227,8 +227,8 @@ Always start in this order:
 
 1. **Create the Model** (`src/server/models/`)
    - Define the data structure as a ModuleScript (`.lua`)
-   - Implement DataStore sync logic
-   - Add broadcast methods for state changes
+   - Call `fire()` after state changes to trigger persistence and broadcasting
+   - DataStore persistence is automatic via PersistenceManager
    - Example: `PlayerInventory.lua`
 
 2. **Create the Controller** (`src/server/controllers/`)
@@ -277,7 +277,7 @@ src/
 ├── server/
 │   ├── models/          # Game state (ModuleScripts)
 │   ├── controllers/     # Business logic (Scripts)
-│   └── services/        # Shared server utilities
+│   └── services/        # Shared server utilities (e.g., PersistenceManager)
 ├── client/
 │   ├── views/           # UI and visual logic (LocalScripts)
 │   └── utilities/       # Client-side helpers

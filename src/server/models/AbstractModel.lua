@@ -3,6 +3,8 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
+local PersistenceManager = require(script.Parent.Parent.services.PersistenceManager)
+
 local AbstractModel = {}
 AbstractModel.__index = AbstractModel
 
@@ -15,11 +17,13 @@ local remoteEvent: RemoteEvent? = nil
 export type AbstractModel = typeof(setmetatable({} :: {
 	ownerId: string,
 	remoteEvent: RemoteEvent,
+	_modelName: string,
 }, AbstractModel))
 
 function AbstractModel.new(modelName: string, ownerId: string): AbstractModel
 	local self = setmetatable({}, AbstractModel) :: any
 	self.ownerId = ownerId
+	self._modelName = modelName
 
 	-- Create RemoteEvent if it doesn't exist (only on first instance)
 	if remoteEvent == nil then
@@ -66,6 +70,9 @@ function AbstractModel:fire(scope: "owner" | "all"): ()
 	if scope ~= "owner" and scope ~= "all" then
 		error("fire() scope must be 'owner' or 'all', got: " .. tostring(scope))
 	end
+
+	-- Queue persistence write
+	PersistenceManager:queueWrite(self._modelName, self.ownerId, self)
 
 	print("=== Firing " .. tostring(self) .. " (scope: " .. scope .. ") ===")
 	for key, value in pairs(self) do

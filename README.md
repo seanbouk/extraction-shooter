@@ -54,7 +54,7 @@ This template implements a strict Model-View-Controller pattern with automatic s
 
 **On Player Join:**
 1. **Player Joins**: PlayerAdded event fires
-2. **Auto-Load**: PersistenceManager loads saved data from DataStore (or uses defaults for new players)
+2. **Auto-Load**: PersistenceServer loads saved data from DataStore (or uses defaults for new players). If DataStore loading fails, the player is kicked with a friendly message to prevent data corruption.
 3. **Model Initialization**: Models are created and loaded data is applied
 4. **Initial Broadcast**: Model broadcasts initial state to the player
 
@@ -75,8 +75,8 @@ This template implements a strict Model-View-Controller pattern with automatic s
 Models represent authoritative game state and live exclusively on the server:
 
 - Single source of truth for all game data
-- Automatically load from DataStore when player joins (via PersistenceManager)
-- Automatically persist to DataStore when state changes (via PersistenceManager)
+- Automatically load from DataStore when player joins (via PersistenceServer)
+- Automatically persist to DataStore when state changes (via PersistenceServer)
 - Broadcast state changes to clients
 - Examples: PlayerInventory, GameSettings, WorldState
 
@@ -237,7 +237,7 @@ Always start in this order:
 1. **Create the Model** (`src/server/models/`)
    - Define the data structure as a ModuleScript (`.lua`)
    - Call `fire()` after state changes to trigger persistence and broadcasting
-   - DataStore persistence is automatic via PersistenceManager
+   - DataStore persistence is automatic via PersistenceServer
    - Example: `PlayerInventory.lua`
 
 2. **Create the Controller** (`src/server/controllers/`)
@@ -286,7 +286,7 @@ src/
 ├── server/
 │   ├── models/          # Game state (ModuleScripts)
 │   ├── controllers/     # Business logic (Scripts)
-│   └── services/        # Shared server utilities (e.g., PersistenceManager)
+│   └── services/        # Shared server utilities (e.g., PersistenceServer)
 ├── client/
 │   ├── views/           # UI and visual logic (LocalScripts)
 │   └── utilities/       # Client-side helpers

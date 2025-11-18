@@ -3,15 +3,13 @@
 local DataStoreService = game:GetService("DataStoreService")
 local RunService = game:GetService("RunService")
 
-local PersistenceManager = {}
+local PersistenceServer = {}
 
 -- Configuration
 local MAX_BUDGET_TOKENS = 50 -- Max tokens available (safety margin from 60)
 local TOKEN_REGENERATION_RATE = 1 -- Tokens per second
 local MINIMUM_WAIT_BETWEEN_WRITES = 0.1 -- Wait even when tokens available
 local QUEUE_WARNING_THRESHOLD = 100 -- Warn if queue gets too large
-local LOAD_RETRY_ATTEMPTS = 3 -- Number of retry attempts for loading
-local LOAD_RETRY_DELAYS = { 0.5, 1, 2 } -- Exponential backoff delays (seconds)
 
 -- Types
 type WriteRequest = {
@@ -67,14 +65,14 @@ local function processWrite(request: WriteRequest): boolean
 	if success then
 		print(
 			string.format(
-				"[PersistenceManager] ✓ Successfully wrote %s for owner %s",
+				"[PersistenceServer] ✓ Successfully wrote %s for owner %s",
 				request.modelName,
 				request.ownerId
 			)
 		)
 		return true
 	else
-		warn(string.format("[PersistenceManager] ✗ Failed to write %s for owner %s: %s", request.modelName, request.ownerId, tostring(err)))
+		warn(string.format("[PersistenceServer] ✗ Failed to write %s for owner %s: %s", request.modelName, request.ownerId, tostring(err)))
 		return false
 	end
 end
@@ -97,7 +95,7 @@ local function startQueueProcessor()
 				if #writeQueue > QUEUE_WARNING_THRESHOLD then
 					warn(
 						string.format(
-							"[PersistenceManager] Queue is large (%d items). Consider optimizing write frequency.",
+							"[PersistenceServer] Queue is large (%d items). Consider optimizing write frequency.",
 							#writeQueue
 						)
 					)
@@ -128,11 +126,11 @@ local function startQueueProcessor()
 	end)
 end
 
--- Initialize the PersistenceManager
-function PersistenceManager.init()
+-- Initialize the PersistenceServer
+function PersistenceServer.init()
 	-- Only initialize in non-Studio environments or in Studio if testing
 	if RunService:IsStudio() then
-		warn("[PersistenceManager] Running in Studio - DataStore operations may be limited")
+		warn("[PersistenceServer] Running in Studio - DataStore operations may be limited")
 	end
 
 	-- Get or create the DataStore
@@ -142,17 +140,17 @@ function PersistenceManager.init()
 
 	if success then
 		dataStore = result
-		print("[PersistenceManager] Initialized successfully")
+		print("[PersistenceServer] Initialized successfully")
 	else
-		warn("[PersistenceManager] Failed to initialize DataStore: " .. tostring(result))
-		warn("[PersistenceManager] Make sure Studio Access to API Services is enabled")
+		warn("[PersistenceServer] Failed to initialize DataStore: " .. tostring(result))
+		warn("[PersistenceServer] Make sure Studio Access to API Services is enabled")
 		-- Create a dummy dataStore to prevent errors
 		dataStore = {
 			SetAsync = function()
-				warn("[PersistenceManager] Dummy SetAsync called - DataStore not available")
+				warn("[PersistenceServer] Dummy SetAsync called - DataStore not available")
 			end,
 			GetAsync = function()
-				warn("[PersistenceManager] Dummy GetAsync called - DataStore not available")
+				warn("[PersistenceServer] Dummy GetAsync called - DataStore not available")
 				return nil -- Simulate new player with no saved data
 			end,
 		} :: any
@@ -165,74 +163,55 @@ function PersistenceManager.init()
 	startQueueProcessor()
 end
 
--- Load a model's data from DataStore with retry logic
-function PersistenceManager:loadModel(modelName: string, ownerId: string): { [string]: any }?
+-- Load a model's data from DataStore
+-- Returns (success: boolean, data: any?)
+-- - New player: (true, nil) - Success, no data found
+-- - Existing player: (true, data) - Success with loaded data
+-- - Load failed: (false, nil) - Failure, should kick player
+function PersistenceServer:loadModel(modelName: string, ownerId: string): (boolean, { [string]: any }?)
 	local key = modelName .. "_" .. ownerId
 
-	-- Try loading with retry logic
-	for attempt = 1, LOAD_RETRY_ATTEMPTS do
-		local success, result = pcall(function()
-			return dataStore:GetAsync(key)
-		end)
+	local success, result = pcall(function()
+		return dataStore:GetAsync(key)
+	end)
 
-		if success then
-			if result then
-				print(
-					string.format(
-						"[PersistenceManager] ✓ Loaded %s for owner %s",
-						modelName,
-						ownerId
-					)
+	if success then
+		if result then
+			print(
+				string.format(
+					"[PersistenceServer] ✓ Loaded %s for owner %s",
+					modelName,
+					ownerId
 				)
-				return result
-			else
-				-- No data found (new player)
-				print(
-					string.format(
-						"[PersistenceManager] No saved data for %s (owner: %s) - using defaults",
-						modelName,
-						ownerId
-					)
-				)
-				return nil
-			end
+			)
+			return true, result
 		else
-			-- Load failed
-			if attempt < LOAD_RETRY_ATTEMPTS then
-				local delay = LOAD_RETRY_DELAYS[attempt]
-				warn(
-					string.format(
-						"[PersistenceManager] Failed to load %s for owner %s (attempt %d/%d): %s - retrying in %.1fs",
-						modelName,
-						ownerId,
-						attempt,
-						LOAD_RETRY_ATTEMPTS,
-						tostring(result),
-						delay
-					)
+			-- No data found (new player)
+			print(
+				string.format(
+					"[PersistenceServer] No saved data for %s (owner: %s) - using defaults",
+					modelName,
+					ownerId
 				)
-				task.wait(delay)
-			else
-				-- Final attempt failed
-				warn(
-					string.format(
-						"[PersistenceManager] ✗ Failed to load %s for owner %s after %d attempts: %s - using defaults",
-						modelName,
-						ownerId,
-						LOAD_RETRY_ATTEMPTS,
-						tostring(result)
-					)
-				)
-				return nil
-			end
+			)
+			return true, nil
 		end
+	else
+		-- Load failed
+		warn(
+			string.format(
+				"[PersistenceServer] ✗ Failed to load %s for owner %s: %s",
+				modelName,
+				ownerId,
+				tostring(result)
+			)
+		)
+		return false, nil
 	end
-
-	return nil
 end
 
 -- Queue a write request
-function PersistenceManager:queueWrite(modelName: string, ownerId: string, modelInstance: any)
+function PersistenceServer:queueWrite(modelName: string, ownerId: string, modelInstance: any)
 	-- Serialize the model data
 	local serializedData = serializeModelData(modelInstance)
 
@@ -250,7 +229,7 @@ function PersistenceManager:queueWrite(modelName: string, ownerId: string, model
 	-- Debug output
 	print(
 		string.format(
-			"[PersistenceManager] Queued write for %s (owner: %s) - Queue size: %d, Tokens: %d",
+			"[PersistenceServer] Queued write for %s (owner: %s) - Queue size: %d, Tokens: %d",
 			modelName,
 			ownerId,
 			#writeQueue,
@@ -260,7 +239,7 @@ function PersistenceManager:queueWrite(modelName: string, ownerId: string, model
 end
 
 -- Get queue stats (useful for debugging)
-function PersistenceManager:getStats(): { queueSize: number, availableTokens: number }
+function PersistenceServer:getStats(): { queueSize: number, availableTokens: number }
 	regenerateTokens()
 	return {
 		queueSize = #writeQueue,
@@ -268,4 +247,4 @@ function PersistenceManager:getStats(): { queueSize: number, availableTokens: nu
 	}
 end
 
-return PersistenceManager
+return PersistenceServer

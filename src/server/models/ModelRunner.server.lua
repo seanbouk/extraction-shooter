@@ -2,9 +2,9 @@
 
 local Players = game:GetService("Players")
 
--- Initialize PersistenceManager before any models are used
-local PersistenceManager = require(script.Parent.Parent.services.PersistenceManager)
-PersistenceManager.init()
+-- Initialize PersistenceServer before any models are used
+local PersistenceServer = require(script.Parent.Parent.services.PersistenceServer)
+PersistenceServer.init()
 
 -- Auto-discover and require all models (skip Abstract)
 local modelsFolder = script.Parent
@@ -41,7 +41,13 @@ Players.PlayerAdded:Connect(function(player: Player)
 
 	for _, modelInfo in modelInfos do
 		-- Load data from DataStore for this model
-		local loadedData = PersistenceManager:loadModel(modelInfo.name, ownerId)
+		local success, loadedData = PersistenceServer:loadModel(modelInfo.name, ownerId)
+
+		-- If load failed, kick the player to prevent data loss
+		if not success then
+			player:Kick("Roblox servers are busy right now. Please rejoin to try again. Your progress is safe!")
+			return -- Stop processing this player
+		end
 
 		-- Get or create model instance for this player (with defaults)
 		local instance = modelInfo.class.get(ownerId)

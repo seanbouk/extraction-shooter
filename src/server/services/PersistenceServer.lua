@@ -2,11 +2,13 @@
 
 local DataStoreService = game:GetService("DataStoreService")
 local RunService = game:GetService("RunService")
+local Players = game:GetService("Players")
 
 local PersistenceServer = {}
 
 -- Configuration
-local MAX_BUDGET_TOKENS = 50 -- Max tokens available (safety margin from 60)
+local BASE_TOKENS = 50 -- Base tokens available (safety margin from 60)
+local TOKENS_PER_PLAYER = 8 -- Additional tokens per player in the game
 local TOKEN_REGENERATION_RATE = 1 -- Tokens per second
 local MINIMUM_WAIT_BETWEEN_WRITES = 0.1 -- Wait even when tokens available
 local QUEUE_WARNING_THRESHOLD = 100 -- Warn if queue gets too large
@@ -22,7 +24,8 @@ type WriteRequest = {
 -- State
 local dataStore: DataStore = nil
 local writeQueue: { WriteRequest } = {}
-local currentTokens = MAX_BUDGET_TOKENS
+local currentMaxTokens = BASE_TOKENS
+local currentTokens = BASE_TOKENS
 local lastTokenRegenTime = 0
 local isProcessing = false
 
@@ -41,6 +44,29 @@ local function serializeModelData(modelInstance: any): { [string]: any }
 	return serialized
 end
 
+-- Update max tokens based on current player count
+local function updateMaxTokens()
+	local playerCount = #Players:GetPlayers()
+	local newMax = BASE_TOKENS + (TOKENS_PER_PLAYER * playerCount)
+
+	currentMaxTokens = newMax
+
+	-- If current tokens exceed new max, cap them
+	if currentTokens > currentMaxTokens then
+		currentTokens = currentMaxTokens
+	end
+
+	print(
+		string.format(
+			"[PersistenceServer] Max tokens updated: %d (base: %d + %d players × %d)",
+			currentMaxTokens,
+			BASE_TOKENS,
+			playerCount,
+			TOKENS_PER_PLAYER
+		)
+	)
+end
+
 -- Regenerate tokens based on elapsed time
 local function regenerateTokens()
 	local currentTime = os.clock()
@@ -48,7 +74,7 @@ local function regenerateTokens()
 
 	if elapsedTime >= 1 then
 		local tokensToAdd = math.floor(elapsedTime / TOKEN_REGENERATION_RATE)
-		currentTokens = math.min(MAX_BUDGET_TOKENS, currentTokens + tokensToAdd)
+		currentTokens = math.min(currentMaxTokens, currentTokens + tokensToAdd)
 		lastTokenRegenTime = currentTime
 	end
 end
@@ -159,6 +185,17 @@ function PersistenceServer.init()
 	-- Initialize token regeneration timer
 	lastTokenRegenTime = os.clock()
 
+	-- Set up player tracking for dynamic max tokens
+	updateMaxTokens() -- Initial calculation
+
+	Players.PlayerAdded:Connect(function(player)
+		updateMaxTokens()
+	end)
+
+	Players.PlayerRemoving:Connect(function(player)
+		updateMaxTokens()
+	end)
+
 	-- Start the background processor
 	startQueueProcessor()
 end
@@ -239,11 +276,12 @@ function PersistenceServer:queueWrite(modelName: string, ownerId: string, modelI
 end
 
 -- Get queue stats (useful for debugging)
-function PersistenceServer:getStats(): { queueSize: number, availableTokens: number }
+function PersistenceServer:getStats(): { queueSize: number, availableTokens: number, maxTokens: number }
 	regenerateTokens()
 	return {
 		queueSize = #writeQueue,
 		availableTokens = currentTokens,
+		maxTokens = currentMaxTokens,
 	}
 end
 

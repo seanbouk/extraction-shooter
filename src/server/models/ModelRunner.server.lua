@@ -51,8 +51,8 @@ Players.PlayerAdded:Connect(function(player: Player)
 			instance:_applyLoadedData(loadedData)
 		end
 
-		-- Broadcast initial state to the player (skip persistence to avoid overwriting)
-		instance:fire("owner", true)
+		-- Don't fire initial state here - client will request when ready
+		-- This prevents race condition where RemoteEvent hasn't replicated yet
 	end
 end)
 

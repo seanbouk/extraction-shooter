@@ -165,14 +165,41 @@ inventoryStateChanged.OnClientEvent:Connect(function(inventoryData: InventoryDat
 		updateLabels(inventoryData.gold, inventoryData.treasure)
 	end
 end)
+
+-- Request initial state from server (IMPORTANT!)
+inventoryStateChanged:FireServer()
 ```
 
 ### Key Concepts:
 - **State Observation**: Views listen to `[ModelName]StateChanged` RemoteEvents
 - **Filtering**: Views filter updates by `ownerId` to show only relevant data
+- **Initial State Request**: After setting up the listener, fire the event to server to request current state
 - **Type Safety**: Define types for the data structure received from the server
 - **UI Updates**: Update TextLabels, progress bars, or other UI elements with new state
 - **Separation**: No user input handling - purely displays authoritative server state
+
+### Why Request Initial State?
+
+When a view needs to display model state immediately (like showing player's gold on join), it must request the initial state after setting up its listener:
+
+```lua
+-- 1. Set up listener first
+stateChangedEvent.OnClientEvent:Connect(function(data)
+	updateUI(data)
+end)
+
+-- 2. Then request initial state
+stateChangedEvent:FireServer()
+```
+
+**Why this pattern?**
+- Prevents race condition where server fires state before client is listening
+- Guarantees the view receives initial state once it's ready
+- Required for any view that displays state immediately on player join
+
+**When to use it:**
+- ✅ Views that show model state on join (inventory, health, stats)
+- ❌ Views that only respond to user actions (buttons, prompts)
 
 ## Best Practices
 
@@ -290,12 +317,16 @@ modelStateChanged.OnClientEvent:Connect(function(modelData: ModelData)
 		updateDisplay(modelData)
 	end
 end)
+
+-- Request initial state after listener is set up
+modelStateChanged:FireServer()
 ```
 
 **Key Points:**
 - Models broadcast state via `[ModelName]StateChanged` RemoteEvents
 - Views filter updates by `ownerId` to show only relevant data
 - Define types matching the server-side model structure
+- **Always request initial state** after setting up the listener (prevents race condition)
 - Use this pattern for any UI that displays model state (health, inventory, etc.)
 
 ## Relationship to Models and Controllers

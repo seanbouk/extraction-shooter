@@ -71,6 +71,9 @@ local function setupStatusBar(statusBar: Instance)
 		end
 	end)
 
+	-- Request initial state from server now that listener is set up
+	inventoryStateChanged:FireServer()
+
 	print(`StatusBarView: Setup complete for {statusBar.Name}`)
 end
 

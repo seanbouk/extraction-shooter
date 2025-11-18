@@ -100,7 +100,8 @@ Views are LocalScripts that observe state and update visual elements:
 
 - Use CollectionService to target tagged objects in Workspace or UI
 - Provide immediate feedback for user interactions
-- Wait for server confirmation before showing state changes
+- Listen to RemoteEvents for state changes from server
+- Request initial state by firing the StateChanged event after setting up listeners
 - Can target server-created objects (visible to all) or client-only objects
 - Examples: InventoryUI, ScoreboardDisplay, InteractableObject
 

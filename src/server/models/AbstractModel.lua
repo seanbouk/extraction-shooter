@@ -48,6 +48,34 @@ function AbstractModel.new(modelName: string, ownerId: string): AbstractModel
 		end
 
 		remoteEvent = event :: RemoteEvent
+
+		-- Set up handler for client-ready signals (only once per model class)
+		remoteEvent.OnServerEvent:Connect(function(player: Player)
+			-- Client is signaling it's ready to receive initial state
+			local ownerId = tostring(player.UserId)
+
+			-- Get the model class from the modelName
+			-- We need to look it up in the concrete model's registry
+			-- This is called from AbstractModel, so we delegate to the concrete implementation
+			local modelModule = script.Parent:FindFirstChild(modelName)
+			if modelModule then
+				local success, model = pcall(require, modelModule)
+				if success and model.get then
+					local instance = model.get(ownerId)
+					if instance then
+						-- Send current state to this player (skip persistence)
+						instance:fire("owner", true)
+						print(
+							string.format(
+								"[AbstractModel] Client ready - sent initial state for %s to player %s",
+								modelName,
+								player.Name
+							)
+						)
+					end
+				end
+			end
+		end)
 	end
 
 	self.remoteEvent = remoteEvent :: RemoteEvent

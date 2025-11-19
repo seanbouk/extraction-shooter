@@ -54,4 +54,13 @@ function InventoryModel:addTreasure(amount: number): ()
 	self:fire("owner")
 end
 
+function InventoryModel:spendTreasure(amount: number): boolean
+	if self.treasure >= amount then
+		self.treasure -= amount
+		self:fire("owner")
+		return true
+	end
+	return false
+end
+
 return InventoryModel

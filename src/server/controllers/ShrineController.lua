@@ -10,16 +10,16 @@ setmetatable(ShrineController, AbstractController)
 
 export type ShrineController = typeof(setmetatable({}, ShrineController)) & AbstractController.AbstractController
 
-local DONATION_AMOUNT = 100
+local DONATION_AMOUNT = 1
 
 local ACTIONS = {
 	Donate = function(inventory: any, shrine: any, player: Player)
-		-- Attempt to spend gold
-		if inventory:spendGold(DONATION_AMOUNT) then
+		-- Attempt to spend treasure
+		if inventory:spendTreasure(DONATION_AMOUNT) then
 			shrine:donate(tostring(player.UserId), DONATION_AMOUNT)
-			print(player.Name .. " donated " .. DONATION_AMOUNT .. " gold to the shrine")
+			print(player.Name .. " donated " .. DONATION_AMOUNT .. " treasure to the shrine")
 		else
-			warn(player.Name .. " attempted to donate to shrine but didn't have enough gold")
+			warn(player.Name .. " attempted to donate to shrine but didn't have enough treasure")
 		end
 	end,
 }

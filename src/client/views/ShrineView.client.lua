@@ -14,7 +14,7 @@ local inventoryStateChanged = eventsFolder:WaitForChild("InventoryStateChanged")
 
 -- Constants
 local SHRINE_TAG = "Shrine"
-local DONATION_AMOUNT = 100
+local DONATION_AMOUNT = 1
 
 -- Types
 type ShrineData = {
@@ -29,7 +29,7 @@ type InventoryData = {
 	treasure: number,
 }
 
-local currentGold = 0
+local currentTreasure = 0
 
 -- Helper to get player name from UserId
 local function getPlayerNameFromUserId(userId: string): string
@@ -61,16 +61,16 @@ local function setupShrine(shrine: Instance)
 		if canAfford then
 			-- Available state: Can afford
 			proximityPrompt.Enabled = true
-			proximityPrompt.ActionText = "Donate (100 gold)"
+			proximityPrompt.ActionText = "Donate (1 treasure)"
 		else
 			-- Locked state: Cannot afford
 			proximityPrompt.Enabled = false
-			proximityPrompt.ActionText = "Need 100 gold"
+			proximityPrompt.ActionText = "Need 1 treasure"
 		end
 	end
 
 	-- Initialize with default state
-	updateState(currentGold >= DONATION_AMOUNT)
+	updateState(currentTreasure >= DONATION_AMOUNT)
 	textBox.Text = "Shrine awaits..."
 
 	-- Connect to proximity prompt
@@ -99,8 +99,8 @@ local function setupShrine(shrine: Instance)
 	inventoryStateChanged.OnClientEvent:Connect(function(inventoryData: InventoryData)
 		local localPlayerId = tostring(localPlayer.UserId)
 		if inventoryData.ownerId == localPlayerId then
-			currentGold = inventoryData.gold
-			updateState(currentGold >= DONATION_AMOUNT)
+			currentTreasure = inventoryData.treasure
+			updateState(currentTreasure >= DONATION_AMOUNT)
 		end
 	end)
 

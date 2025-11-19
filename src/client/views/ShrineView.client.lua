@@ -56,6 +56,7 @@ local function setupShrine(shrine: Instance)
 	local sound = base:WaitForChild("Sound") :: Sound
 	local surfaceGui = base:WaitForChild("SurfaceGui") :: SurfaceGui
 	local textBox = surfaceGui:WaitForChild("TextBox") :: TextLabel
+	local particleEmitter = base:WaitForChild("ParticleEmitter") :: ParticleEmitter
 
 	-- Store original scale values to preserve designer settings
 	local originalXScale = textBox.Position.X.Scale
@@ -102,6 +103,9 @@ local function setupShrine(shrine: Instance)
 
 	-- Listen for shrine state changes (ALL players see this - no ownerId filter!)
 	shrineStateChanged.OnClientEvent:Connect(function(shrineData: ShrineData)
+		-- Emit particles based on total treasure count
+		particleEmitter:Emit(shrineData.treasure)
+
 		-- Update text to show who donated
 		if shrineData.userID and shrineData.userID ~= "" then
 			local username = getPlayerNameFromUserId(shrineData.userID)

@@ -3,6 +3,7 @@
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
+local TweenService = game:GetService("TweenService")
 
 local localPlayer = Players.LocalPlayer
 
@@ -56,6 +57,19 @@ local function setupShrine(shrine: Instance)
 	local surfaceGui = base:WaitForChild("SurfaceGui") :: SurfaceGui
 	local textBox = surfaceGui:WaitForChild("TextBox") :: TextLabel
 
+	-- Store original scale values to preserve designer settings
+	local originalXScale = textBox.Position.X.Scale
+	local originalYScale = textBox.Position.Y.Scale
+	local originalYOffset = textBox.Position.Y.Offset
+
+	-- Initialize position with X offset at 400
+	textBox.Position = UDim2.new(
+		originalXScale,
+		400,
+		originalYScale,
+		originalYOffset
+	)
+
 	-- Function to update visual state
 	local function updateState(canAfford: boolean)
 		if canAfford then
@@ -92,6 +106,53 @@ local function setupShrine(shrine: Instance)
 		if shrineData.userID and shrineData.userID ~= "" then
 			local username = getPlayerNameFromUserId(shrineData.userID)
 			textBox.Text = "Thank you, " .. username .. "!"
+
+			-- Reset position to starting point (400 offset)
+			textBox.Position = UDim2.new(originalXScale, 400, originalYScale, originalYOffset)
+
+			-- First tween info: 2 seconds, BounceOut
+			local tweenInfo1 = TweenInfo.new(
+				2,
+				Enum.EasingStyle.Bounce,
+				Enum.EasingDirection.Out,
+				0,
+				false,
+				0
+			)
+
+			-- Second tween info: 1.5 seconds, Circular EaseOut (delayed by 1 second)
+			local tweenInfo2 = TweenInfo.new(
+				1.5,
+				Enum.EasingStyle.Circular,
+				Enum.EasingDirection.Out,
+				0,
+				false,
+				0
+			)
+
+			-- First tween: 400 -> 0 (2 seconds)
+			local tween1 = TweenService:Create(textBox, tweenInfo1, {
+				Position = UDim2.new(originalXScale, 0, originalYScale, originalYOffset)
+			})
+
+			-- Second tween: 0 -> -300 (3 seconds)
+			local tween2 = TweenService:Create(textBox, tweenInfo2, {
+				Position = UDim2.new(originalXScale, -300, originalYScale, originalYOffset)
+			})
+
+			-- Chain them with 1 second delay (start at 3 seconds total)
+			tween1.Completed:Connect(function()
+				task.wait(1)
+				tween2:Play()
+			end)
+
+			-- Reset position to 400 when animation completes
+			tween2.Completed:Connect(function()
+				textBox.Position = UDim2.new(originalXScale, 400, originalYScale, originalYOffset)
+			end)
+
+			-- Start the animation
+			tween1:Play()
 		end
 	end)
 

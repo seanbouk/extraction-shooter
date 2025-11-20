@@ -32,17 +32,8 @@ function BazaarController.new(): BazaarController
 
 	-- Set up event listener
 	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string)
-		-- Validate and execute action
-		local actionFunc = ACTIONS[action]
-		if not actionFunc then
-			warn("Invalid action received from " .. player.Name .. ": " .. tostring(action))
-			return
-		end
-
-		actionFunc(InventoryModel.get(tostring(player.UserId)), player)
+		self:dispatchAction(ACTIONS, action, player, InventoryModel.get(tostring(player.UserId)), player)
 	end)
-
-	print("BazaarController initialized")
 
 	return self :: BazaarController
 end

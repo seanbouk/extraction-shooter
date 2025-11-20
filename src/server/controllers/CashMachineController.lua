@@ -36,17 +36,9 @@ function CashMachineController.new(): CashMachineController
 			return
 		end
 
-		-- Validate and execute action
-		local actionFunc = ACTIONS[action]
-		if not actionFunc then
-			warn("Invalid action received from " .. player.Name .. ": " .. tostring(action))
-			return
-		end
-
-		actionFunc(InventoryModel.get(tostring(player.UserId)), amount, player)
+		-- Dispatch action
+		self:dispatchAction(ACTIONS, action, player, InventoryModel.get(tostring(player.UserId)), amount, player)
 	end)
-
-	print("CashMachineController initialized")
 
 	return self :: CashMachineController
 end

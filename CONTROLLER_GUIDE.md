@@ -31,8 +31,9 @@ Controllers are responsible for:
 
 All controllers inherit from `AbstractController.lua` which provides:
 
-- **`new(controllerName: string)`**: Constructor that creates the controller and its RemoteEvent
+- **`new(controllerName: string)`**: Constructor that creates the controller and its RemoteEvent, and prints initialization message
 - **`remoteEvent: RemoteEvent`**: Automatically created RemoteEvent for client-server communication
+- **`dispatchAction(actionsTable, action, player, ...)`**: Validates and executes actions from an ACTIONS table, with automatic error handling
 
 **Automatic RemoteEvent Creation:**
 - Takes the controller name (e.g., "CashMachineController")
@@ -63,19 +64,13 @@ function YourController.new(): YourController
 
 	-- Set up event listener
 	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string, ...)
-		-- Validate the request
-		if not isValidAction(action) then
-			warn("Invalid action from " .. player.Name .. ": " .. tostring(action))
-			return
-		end
-
 		-- Check permissions/anti-cheat
 		if not canPlayerDoThis(player) then
 			warn("Unauthorized action attempt from " .. player.Name)
 			return
 		end
 
-		-- Update the model
+		-- Get the model
 		-- For User-scoped models: get per-player instance
 		local model = YourModel.get(tostring(player.UserId))
 		-- For Server-scoped models: get shared instance
@@ -88,7 +83,7 @@ function YourController.new(): YourController
 		end
 	end)
 
-	print("YourController initialized")
+	-- Note: AbstractController.new() automatically prints initialization message
 
 	return self :: YourController
 end
@@ -385,14 +380,8 @@ function CashMachineController.new(): CashMachineController
 			return
 		end
 
-		-- Validate and execute action
-		local actionFunc = ACTIONS[action]
-		if not actionFunc then
-			warn("Invalid action received from " .. player.Name .. ": " .. tostring(action))
-			return
-		end
-
-		actionFunc(InventoryModel.get(tostring(player.UserId)), amount, player)
+		-- Dispatch action (AbstractController handles validation and execution)
+		self:dispatchAction(ACTIONS, action, player, InventoryModel.get(tostring(player.UserId)), amount, player)
 	end)
 
 	return self :: CashMachineController
@@ -405,6 +394,7 @@ end
 - Clean separation between validation and business logic
 - Very readable event handler
 - Consistent code organization across controllers
+- AbstractController's `dispatchAction` method handles action validation automatically
 
 ### Anti-Cheat Integration
 

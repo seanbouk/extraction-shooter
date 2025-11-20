@@ -34,7 +34,19 @@ function AbstractController.new(controllerName: string): AbstractController
 
 	self.remoteEvent = remoteEvent :: RemoteEvent
 
+	print(controllerName .. " initialized")
+
 	return self
+end
+
+function AbstractController:dispatchAction(actionsTable: { [string]: (...any) -> () }, action: string, player: Player, ...: any)
+	local actionFunc = actionsTable[action]
+	if not actionFunc then
+		warn("Invalid action received from " .. player.Name .. ": " .. tostring(action))
+		return
+	end
+
+	actionFunc(...)
 end
 
 return AbstractController

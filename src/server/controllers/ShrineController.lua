@@ -31,21 +31,12 @@ function ShrineController.new(): ShrineController
 	setmetatable(self, ShrineController)
 
 	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string)
-		-- Validate action
-		local actionFunc = ACTIONS[action]
-		if not actionFunc then
-			warn("Invalid action received from " .. player.Name .. ": " .. tostring(action))
-			return
-		end
-
 		-- Get models
 		local inventory = InventoryModel.get(tostring(player.UserId))
 		local shrine = ShrineModel.get("SERVER") -- Server-scoped model
 
-		actionFunc(inventory, shrine, player)
+		self:dispatchAction(ACTIONS, action, player, inventory, shrine, player)
 	end)
-
-	print("ShrineController initialized")
 
 	return self :: ShrineController
 end

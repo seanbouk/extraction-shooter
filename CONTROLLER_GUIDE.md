@@ -354,18 +354,24 @@ end
 
 ### Multi-Action Controller (lookup table pattern)
 
-For better scalability, use a lookup table to define actions:
+For better scalability and maintainability, use named functions with a lookup table:
 
 ```lua
+-- Define action functions at module level
+local function withdraw(inventory: any, amount: number, player: Player)
+	inventory:addGold(amount)
+	print(player.Name .. " withdrew " .. amount .. " gold. New balance: " .. inventory.gold)
+end
+
+local function deposit(inventory: any, amount: number, player: Player)
+	inventory:addGold(-amount)
+	print(player.Name .. " deposited " .. amount .. " gold. New balance: " .. inventory.gold)
+end
+
+-- Map action names to functions
 local ACTIONS = {
-	Withdraw = function(inventory: any, amount: number, player: Player)
-		inventory:addGold(amount)
-		print(player.Name .. " withdrew " .. amount .. " gold. New balance: " .. inventory.gold)
-	end,
-	Deposit = function(inventory: any, amount: number, player: Player)
-		inventory:addGold(-amount)
-		print(player.Name .. " deposited " .. amount .. " gold. New balance: " .. inventory.gold)
-	end,
+	Withdraw = withdraw,
+	Deposit = deposit,
 }
 
 function CashMachineController.new(): CashMachineController
@@ -393,11 +399,12 @@ function CashMachineController.new(): CashMachineController
 end
 ```
 
-**Benefits of lookup table pattern:**
-- Easy to add new actions - just add to the table
-- Each action fully encapsulates its behavior
+**Benefits of named function + lookup table pattern:**
+- Easy to add new actions - define the function and add it to the table
+- Each action is a named, reusable function (better for testing and debugging)
 - Clean separation between validation and business logic
 - Very readable event handler
+- Consistent code organization across controllers
 
 ### Anti-Cheat Integration
 

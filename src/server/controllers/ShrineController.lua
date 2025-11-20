@@ -12,16 +12,18 @@ export type ShrineController = typeof(setmetatable({}, ShrineController)) & Abst
 
 local DONATION_AMOUNT = 1
 
+local function donate(inventory: any, shrine: any, player: Player)
+	-- Attempt to spend treasure
+	if inventory:spendTreasure(DONATION_AMOUNT) then
+		shrine:donate(tostring(player.UserId), DONATION_AMOUNT)
+		print(player.Name .. " donated " .. DONATION_AMOUNT .. " treasure to the shrine")
+	else
+		warn(player.Name .. " attempted to donate to shrine but didn't have enough treasure")
+	end
+end
+
 local ACTIONS = {
-	Donate = function(inventory: any, shrine: any, player: Player)
-		-- Attempt to spend treasure
-		if inventory:spendTreasure(DONATION_AMOUNT) then
-			shrine:donate(tostring(player.UserId), DONATION_AMOUNT)
-			print(player.Name .. " donated " .. DONATION_AMOUNT .. " treasure to the shrine")
-		else
-			warn(player.Name .. " attempted to donate to shrine but didn't have enough treasure")
-		end
-	end,
+	Donate = donate,
 }
 
 function ShrineController.new(): ShrineController

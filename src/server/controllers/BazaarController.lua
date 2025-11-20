@@ -9,19 +9,21 @@ setmetatable(BazaarController, AbstractController)
 
 export type BazaarController = typeof(setmetatable({}, BazaarController)) & AbstractController.AbstractController
 
-local ACTIONS = {
-	BuyTreasure = function(inventory: any, player: Player)
-		local TREASURE_COST = 200
-		local TREASURE_AMOUNT = 1
+local function buyTreasure(inventory: any, player: Player)
+	local TREASURE_COST = 200
+	local TREASURE_AMOUNT = 1
 
-		-- Attempt to spend gold
-		if inventory:spendGold(TREASURE_COST) then
-			inventory:addTreasure(TREASURE_AMOUNT)
-			print(player.Name .. " bought " .. TREASURE_AMOUNT .. " treasure for " .. TREASURE_COST .. " gold. New balance: " .. inventory.gold .. " gold, " .. inventory.treasure .. " treasure")
-		else
-			warn(player.Name .. " attempted to buy treasure but didn't have enough gold. Current: " .. inventory.gold .. ", Required: " .. TREASURE_COST)
-		end
-	end,
+	-- Attempt to spend gold
+	if inventory:spendGold(TREASURE_COST) then
+		inventory:addTreasure(TREASURE_AMOUNT)
+		print(player.Name .. " bought " .. TREASURE_AMOUNT .. " treasure for " .. TREASURE_COST .. " gold. New balance: " .. inventory.gold .. " gold, " .. inventory.treasure .. " treasure")
+	else
+		warn(player.Name .. " attempted to buy treasure but didn't have enough gold. Current: " .. inventory.gold .. ", Required: " .. TREASURE_COST)
+	end
+end
+
+local ACTIONS = {
+	BuyTreasure = buyTreasure,
 }
 
 function BazaarController.new(): BazaarController

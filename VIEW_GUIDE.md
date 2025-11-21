@@ -355,7 +355,9 @@ modelStateChanged:FireServer()
 5. View receives broadcast and updates UI with final state
 ```
 
-### Shared Constants (IntentActions)
+### Shared Constants and Types
+
+#### IntentActions (View → Controller)
 
 All intent action strings are centralized in `src/shared/IntentActions.lua`:
 
@@ -368,11 +370,28 @@ bazaarIntent:FireServer(IntentActions.Bazaar.BuyTreasure)
 shrineIntent:FireServer(IntentActions.Shrine.Donate)
 ```
 
+#### StateEvents (Model → View)
+
+All state event names and data types are centralized in `src/shared/StateEvents.lua`:
+
+```lua
+local StateEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StateEvents"))
+
+-- Use event name constants instead of magic strings
+local inventoryStateChanged = eventsFolder:WaitForChild(StateEvents.Inventory.EventName)
+
+-- Use exported types for type-safe handling
+inventoryStateChanged.OnClientEvent:Connect(function(data: StateEvents.InventoryData)
+    updateUI(data.gold, data.treasure)
+end)
+```
+
 **Benefits:**
-- Type safety - prevents typos
-- Autocomplete support in your IDE
-- Single source of truth for all action strings
-- Easy refactoring - change in one place
+- Type safety - prevents typos in event names and data structures
+- Autocomplete support for both event names and data fields
+- Single source of truth for all state event names and types
+- Easy refactoring - change in one place, type errors guide you everywhere
+- No duplicate type definitions across views
 
 ### Understanding What Views Actually Send
 

@@ -22,21 +22,17 @@ local Players = game:GetService("Players")
 
 local localPlayer = Players.LocalPlayer
 
+-- Import shared state events
+local StateEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StateEvents"))
+
 -- Wait for the remote event for inventory state changes
 local eventsFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
-local inventoryStateChanged = eventsFolder:WaitForChild("InventoryStateChanged") :: RemoteEvent
+local inventoryStateChanged = eventsFolder:WaitForChild(StateEvents.Inventory.EventName) :: RemoteEvent
 
 -- Constants
 local STATUS_BAR_TAG = "StatusBar"
 local GOLD_EMOJI = "💰"
 local TREASURE_EMOJI = "💎"
-
--- Type for inventory data received from server
-type InventoryData = {
-	ownerId: string,
-	gold: number,
-	treasure: number,
-}
 
 -- Sets up the status bar UI for a single ScreenGui
 local function setupStatusBar(statusBar: Instance)
@@ -63,7 +59,7 @@ local function setupStatusBar(statusBar: Instance)
 	updateLabels(0, 0)
 
 	-- Listen for inventory state changes
-	inventoryStateChanged.OnClientEvent:Connect(function(inventoryData: InventoryData)
+	inventoryStateChanged.OnClientEvent:Connect(function(inventoryData: StateEvents.InventoryData)
 		-- Only update if this is the local player's inventory
 		local localPlayerId = tostring(localPlayer.UserId)
 		if inventoryData.ownerId == localPlayerId then

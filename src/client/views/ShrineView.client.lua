@@ -7,31 +7,19 @@ local TweenService = game:GetService("TweenService")
 
 local localPlayer = Players.LocalPlayer
 
--- Import shared constants
+-- Import shared constants and state events
 local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+local StateEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StateEvents"))
 
 -- Get remote events
 local eventsFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
 local shrineIntent = eventsFolder:WaitForChild("ShrineIntent") :: RemoteEvent
-local shrineStateChanged = eventsFolder:WaitForChild("ShrineStateChanged") :: RemoteEvent
-local inventoryStateChanged = eventsFolder:WaitForChild("InventoryStateChanged") :: RemoteEvent
+local shrineStateChanged = eventsFolder:WaitForChild(StateEvents.Shrine.EventName) :: RemoteEvent
+local inventoryStateChanged = eventsFolder:WaitForChild(StateEvents.Inventory.EventName) :: RemoteEvent
 
 -- Constants
 local SHRINE_TAG = "Shrine"
 local DONATION_AMOUNT = 1
-
--- Types
-type ShrineData = {
-	ownerId: string,
-	treasure: number,
-	userID: string,
-}
-
-type InventoryData = {
-	ownerId: string,
-	gold: number,
-	treasure: number,
-}
 
 local currentTreasure = 0
 
@@ -105,13 +93,13 @@ local function setupShrine(shrine: Instance)
 	end)
 
 	-- Listen for shrine state changes (ALL players see this - no ownerId filter!)
-	shrineStateChanged.OnClientEvent:Connect(function(shrineData: ShrineData)
+	shrineStateChanged.OnClientEvent:Connect(function(shrineData: StateEvents.ShrineData)
 		-- Emit particles based on total treasure count
 		particleEmitter:Emit(shrineData.treasure)
 
 		-- Update text to show who donated
-		if shrineData.userID and shrineData.userID ~= "" then
-			local username = getPlayerNameFromUserId(shrineData.userID)
+		if shrineData.userId and shrineData.userId ~= "" then
+			local username = getPlayerNameFromUserId(shrineData.userId)
 			textBox.Text = "Thank you, " .. username .. "!"
 
 			-- Reset position to starting point (400 offset)
@@ -164,7 +152,7 @@ local function setupShrine(shrine: Instance)
 	end)
 
 	-- Listen for inventory changes (only local player)
-	inventoryStateChanged.OnClientEvent:Connect(function(inventoryData: InventoryData)
+	inventoryStateChanged.OnClientEvent:Connect(function(inventoryData: StateEvents.InventoryData)
 		local localPlayerId = tostring(localPlayer.UserId)
 		if inventoryData.ownerId == localPlayerId then
 			currentTreasure = inventoryData.treasure

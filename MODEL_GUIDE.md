@@ -198,9 +198,27 @@ end
 **Important**:
 - Pass the model name (e.g., `"YourModel"`) as the first parameter to `AbstractModel.new()`
 - This creates a RemoteEvent named `YourStateChanged` in `ReplicatedStorage/Shared/Events/`
+- Event names should be registered in `src/shared/StateEvents.lua` for type safety
 - Pass `ownerId` as the second parameter
 - Pass the scope (`"User"` or `"Server"`) as the third parameter
 - Cast `AbstractModel.new()` to `any` to allow metatable manipulation without type errors
+
+**Type Safety Tip:**
+Define your model's state data type in `src/shared/StateEvents.lua` so views can use type-safe handlers:
+
+```lua
+-- In StateEvents.lua
+export type YourModelData = {
+    ownerId: string,
+    property1: number,
+    property2: string,
+}
+
+-- Views can then use:
+stateChanged.OnClientEvent:Connect(function(data: StateEvents.YourModelData)
+    -- Type-safe handling
+end)
+```
 
 ### Step 4: Implement Per-Owner Registry Pattern
 

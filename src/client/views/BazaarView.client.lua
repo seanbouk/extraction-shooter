@@ -24,24 +24,18 @@ local Players = game:GetService("Players")
 
 local localPlayer = Players.LocalPlayer
 
--- Import shared constants
+-- Import shared constants and state events
 local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+local StateEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StateEvents"))
 
 -- Get the remote events
 local eventsFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
 local bazaarIntent = eventsFolder:WaitForChild("BazaarIntent") :: RemoteEvent
-local inventoryStateChanged = eventsFolder:WaitForChild("InventoryStateChanged") :: RemoteEvent
+local inventoryStateChanged = eventsFolder:WaitForChild(StateEvents.Inventory.EventName) :: RemoteEvent
 
 -- Constants
 local BAZAAR_TAG = "Bazaar"
 local TREASURE_COST = 200
-
--- Type for inventory data received from server
-type InventoryData = {
-	ownerId: string,
-	gold: number,
-	treasure: number,
-}
 
 -- Store current gold amount
 local currentGold = 0
@@ -116,7 +110,7 @@ local function setupBazaar(bazaar: Instance)
 	end)
 
 	-- Listen for inventory updates to update state
-	inventoryStateChanged.OnClientEvent:Connect(function(inventoryData: InventoryData)
+	inventoryStateChanged.OnClientEvent:Connect(function(inventoryData: StateEvents.InventoryData)
 		-- Only update if this is the local player's inventory
 		local localPlayerId = tostring(localPlayer.UserId)
 		if inventoryData.ownerId == localPlayerId then

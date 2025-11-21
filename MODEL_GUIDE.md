@@ -307,7 +307,7 @@ end
 1. When `fire()` is called, AbstractModel broadcasts the **entire model state** to clients
 2. A RemoteEvent named `[ModelName]StateChanged` is automatically created in `ReplicatedStorage/Shared/Events/`
 3. Client-side Views listen to this RemoteEvent and update the UI
-4. Views filter updates by `ownerId` to display only relevant data
+4. For "owner" scope, the server uses `FireClient(player, modelData)` which already ensures only the owner receives the event - Views don't need to filter. For "all" scope, Views may need to filter by `ownerId` if they only want to display data relevant to the local player.
 
 ## Examples
 

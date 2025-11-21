@@ -35,7 +35,7 @@ Views typically follow one of three patterns:
 **Pattern C: State Observation and UI Updates**
 - Listen to Model state change RemoteEvents
 - Update UI based on authoritative server state
-- Filter updates by ownerId or other criteria
+- Filter updates by ownerId **only when receiving "all" scope broadcasts** (server already filters "owner" scope)
 - Example: Health bars, inventory displays, status indicators
 
 ### Step 2: Create Your View File
@@ -163,11 +163,8 @@ updateLabels(0, 0)
 
 -- Listen for state changes from server
 inventoryStateChanged.OnClientEvent:Connect(function(inventoryData: InventoryData)
-	-- Only update if this is the local player's inventory
-	local localPlayerId = tostring(localPlayer.UserId)
-	if inventoryData.ownerId == localPlayerId then
-		updateLabels(inventoryData.gold, inventoryData.treasure)
-	end
+	-- No filtering needed - server already sent this only to the owner via FireClient
+	updateLabels(inventoryData.gold, inventoryData.treasure)
 end)
 
 -- Request initial state from server (IMPORTANT!)
@@ -176,7 +173,7 @@ inventoryStateChanged:FireServer()
 
 ### Key Concepts:
 - **State Observation**: Views listen to `[ModelName]StateChanged` RemoteEvents
-- **Filtering**: Views filter updates by `ownerId` to show only relevant data
+- **Filtering**: For "owner" scope broadcasts, the server already ensures only the owner receives the event via `FireClient()` - no client-side filtering needed. Only filter by `ownerId` when receiving "all" scope broadcasts (e.g., visible-to-all data like shrine donations).
 - **Initial State Request**: After setting up the listener, fire the event to server to request current state
 - **Type Safety**: Define types for the data structure received from the server
 - **UI Updates**: Update TextLabels, progress bars, or other UI elements with new state
@@ -315,11 +312,16 @@ local modelStateChanged = ReplicatedStorage:WaitForChild("Shared")
 	:WaitForChild("YourModelStateChanged") :: RemoteEvent
 
 modelStateChanged.OnClientEvent:Connect(function(modelData: ModelData)
-	-- Filter: Only process updates for the local player
-	if modelData.ownerId == tostring(localPlayer.UserId) then
-		-- Update UI based on new authoritative state
-		updateDisplay(modelData)
-	end
+	-- For "owner" scope broadcasts: No filtering needed - server already sent to correct player
+	-- For "all" scope broadcasts: Filter by checking ownerId if needed
+
+	-- Example for "owner" scope (like inventory):
+	updateDisplay(modelData)
+
+	-- Example for "all" scope where you need to filter (like visible health bars):
+	-- if modelData.ownerId == tostring(localPlayer.UserId) then
+	--     updateDisplay(modelData)
+	-- end
 end)
 
 -- Request initial state after listener is set up
@@ -328,7 +330,7 @@ modelStateChanged:FireServer()
 
 **Key Points:**
 - Models broadcast state via `[ModelName]StateChanged` RemoteEvents
-- Views filter updates by `ownerId` to show only relevant data
+- Views only need to filter by `ownerId` for "all" scope broadcasts (where all players receive the event). For "owner" scope broadcasts, the server already ensures only the owner receives it via `FireClient()`.
 - Define types matching the server-side model structure
 - **Always request initial state** after setting up the listener (prevents race condition)
 - Use this pattern for any UI that displays model state (health, inventory, etc.)

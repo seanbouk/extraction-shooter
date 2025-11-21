@@ -60,11 +60,7 @@ local function setupStatusBar(statusBar: Instance)
 
 	-- Listen for inventory state changes
 	inventoryStateChanged.OnClientEvent:Connect(function(inventoryData: StateEvents.InventoryData)
-		-- Only update if this is the local player's inventory
-		local localPlayerId = tostring(localPlayer.UserId)
-		if inventoryData.ownerId == localPlayerId then
-			updateLabels(inventoryData.gold, inventoryData.treasure)
-		end
+		updateLabels(inventoryData.gold, inventoryData.treasure)
 	end)
 
 	-- Request initial state from server now that listener is set up

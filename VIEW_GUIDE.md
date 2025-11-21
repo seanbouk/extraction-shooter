@@ -374,6 +374,101 @@ shrineIntent:FireServer(IntentActions.Shrine.Donate)
 - Single source of truth for all action strings
 - Easy refactoring - change in one place
 
+### Understanding What Views Actually Send
+
+It's important to understand what actually happens when a view sends an intent to a controller.
+
+#### What Gets Sent Over the Network
+
+When you call:
+```lua
+cashMachineIntent:FireServer(IntentActions.CashMachine.Withdraw, amount)
+```
+
+**What actually transmits:**
+```
+[PlayerInstance] "Withdraw" 50
+```
+
+- `IntentActions.CashMachine.Withdraw` evaluates to the string `"Withdraw"` at runtime
+- No type information is sent - just the plain string value
+- The network doesn't know or care about types
+
+#### Type Safety in Views
+
+Views in this codebase don't currently have type-enforced action parameters. This means:
+
+```lua
+-- This works, but no compile-time validation forces you to use IntentActions
+cashMachineIntent:FireServer("Withdraw", 50)
+
+-- This also works at compile-time, but will fail at runtime
+cashMachineIntent:FireServer("InvalidAction", 50)
+```
+
+**Why this is okay:**
+- The controller's ACTIONS table provides runtime validation
+- Invalid actions are rejected on the server
+- Type safety is primarily enforced on the server side where it matters for security
+
+#### Optional: Adding Type Safety to View Helper Functions
+
+If you want compile-time type safety in your views, you can create typed helper functions:
+
+```lua
+local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+
+-- Define a typed helper function
+local function sendCashMachineIntent(action: IntentActions.CashMachineAction, amount: number)
+    cashMachineIntent:FireServer(action, amount)
+end
+
+-- Now this would be a compile-time error:
+sendCashMachineIntent("InvalidAction", 50)  -- Type error!
+
+-- This is correct:
+sendCashMachineIntent(IntentActions.CashMachine.Withdraw, 50)  -- ✓
+```
+
+**Benefits of typed helpers:**
+- Compile-time validation that you're using valid actions
+- IDE autocomplete for action parameters
+- Catches typos during development
+- Documents which actions are valid for this intent
+
+**When to use typed helpers:**
+- Complex views with many intent calls
+- When you want extra safety during refactoring
+- Team projects where catching errors early helps collaboration
+
+**When you don't need them:**
+- Simple views with one or two intents
+- When you always use IntentActions constants (already safe from typos)
+- Views that only observe state and don't send intents
+
+#### The View's Role in Type Safety
+
+**What views DO:**
+- Use centralized constants from IntentActions (prevents typos)
+- Send plain string values over RemoteEvents
+- Provide immediate visual feedback to users
+
+**What views DON'T do:**
+- Enforce type safety at the network boundary (impossible - clients can be modified)
+- Validate actions (that's the controller's job)
+- Provide security guarantees (server-side validation does this)
+
+#### Key Takeaway
+
+**Views use constants for consistency. Controllers enforce types for development safety and validate at runtime for security.**
+
+The IntentActions pattern gives you:
+- Constants that prevent typos in views
+- Type annotations that guide controller development
+- Runtime validation that provides actual security
+
+All three layers work together to create a robust, maintainable system.
+
 ## Next Steps
 
 After creating your view:

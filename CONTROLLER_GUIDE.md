@@ -575,6 +575,129 @@ export type ShrineAction = "Donate"
 - **Self-documenting code** - developers can see valid actions from the type
 - **No more magic strings** scattered across the codebase
 
+### Understanding Type Safety: Compile-Time vs Runtime
+
+It's important to understand the distinction between compile-time type checking and runtime behavior in the IntentActions pattern.
+
+#### What Happens at Compile-Time
+
+When you write code with type annotations:
+
+```lua
+self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.CashMachineAction, amount: number)
+    -- Luau's type checker validates your code
+end)
+```
+
+**Compile-time benefits:**
+- Luau validates that `action` is used consistently with the `CashMachineAction` type
+- Your IDE provides autocomplete for valid actions
+- Type errors are caught during development, not in production
+- Refactoring tools can find all usages of a specific action type
+
+**What types DON'T do:**
+- They don't prevent clients from sending arbitrary data
+- They don't exist at runtime (type erasure)
+- They don't validate network input
+
+#### What Happens at Runtime
+
+When a client fires a RemoteEvent:
+
+```lua
+-- Client sends:
+cashMachineIntent:FireServer("Withdraw", 50)
+
+-- Network transmits:
+[PlayerInstance] "Withdraw" 50
+
+-- Server receives:
+function(player, action, amount)
+    -- action is just a string - could be anything!
+end
+```
+
+**Runtime reality:**
+- All type annotations are erased - `action: IntentActions.CashMachineAction` becomes just `action`
+- The value is a plain string that the client sent
+- A malicious client could send `"HackAction"` or any other string
+- **No automatic validation happens from the type system**
+
+#### Where Real Validation Happens
+
+The ACTIONS table pattern provides your runtime security:
+
+```lua
+local ACTIONS = {
+    [IntentActions.CashMachine.Withdraw] = withdraw,
+    [IntentActions.CashMachine.Deposit] = deposit,
+}
+
+-- In AbstractController.dispatchAction:
+local actionFunc = actionsTable[action]
+if not actionFunc then
+    warn("Invalid action: " .. tostring(action))  -- Runtime validation!
+    return
+end
+```
+
+**This table lookup is your actual security:**
+- If `action` isn't a key in the table, `actionFunc` is `nil`
+- The `if not actionFunc` check catches invalid actions
+- Only actions you explicitly defined in ACTIONS can execute
+
+#### Two-Layer Defense Strategy
+
+The IntentActions pattern provides defense in depth:
+
+**Layer 1: Compile-Time Types (Developer Safety)**
+- Catches typos and mistakes during development
+- Provides IDE support and documentation
+- Prevents internal bugs in your own code
+- Makes refactoring safer
+
+**Layer 2: Runtime Validation (Security)**
+- ACTIONS table lookup rejects invalid actions
+- Parameter validation (like `amount <= 0` checks)
+- Protects against malicious clients
+- Provides actual security guarantees
+
+#### Example: The Complete Flow
+
+```lua
+-- CLIENT: View code (compile-time checking)
+cashMachineIntent:FireServer(
+    IntentActions.CashMachine.Withdraw,  -- Luau knows this is "Withdraw"
+    50
+)
+
+-- NETWORK: What actually transmits
+-- Just the string "Withdraw" and number 50
+
+-- SERVER: Controller receives (compile-time + runtime)
+self.remoteEvent.OnServerEvent:Connect(function(
+    player: Player,
+    action: IntentActions.CashMachineAction,  -- Compile-time: helps you write correct code
+    amount: number
+)
+    -- Runtime validation
+    if amount <= 0 then
+        warn("Invalid amount")
+        return
+    end
+
+    -- Runtime security via table lookup
+    self:dispatchAction(ACTIONS, action, player, inventory, amount, player)
+    -- If action isn't in ACTIONS, dispatchAction warns and returns
+end)
+```
+
+#### Key Takeaway
+
+**Types guide honest developers to write correct code. Runtime validation protects against malicious actors.**
+
+Don't rely on types alone for security - always validate untrusted input at runtime. The IntentActions pattern gives you both: excellent developer experience through types, and robust security through table-based validation.
+
 ## Next Steps
 
 After creating your controller:

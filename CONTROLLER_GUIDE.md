@@ -380,8 +380,11 @@ function CashMachineController.new(): CashMachineController
 			return
 		end
 
+		-- Get model
+		local inventory = InventoryModel.get(tostring(player.UserId))
+
 		-- Dispatch action (AbstractController handles validation and execution)
-		self:dispatchAction(ACTIONS, action, player, InventoryModel.get(tostring(player.UserId)), amount, player)
+		self:dispatchAction(ACTIONS, action, player, inventory, amount, player)
 	end)
 
 	return self :: CashMachineController

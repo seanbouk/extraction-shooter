@@ -32,7 +32,8 @@ function BazaarController.new(): BazaarController
 
 	-- Set up event listener
 	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string)
-		self:dispatchAction(ACTIONS, action, player, InventoryModel.get(tostring(player.UserId)), player)
+		local inventory = InventoryModel.get(tostring(player.UserId))
+		self:dispatchAction(ACTIONS, action, player, inventory, player)
 	end)
 
 	return self :: BazaarController

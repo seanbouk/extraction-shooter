@@ -32,7 +32,7 @@ function CashMachineController.new(): CashMachineController
 	setmetatable(self, CashMachineController)
 
 	-- Set up event listener
-	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string, amount: number)
+	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.CashMachineAction, amount: number)
 		-- Validate amount
 		if amount <= 0 then
 			warn("Invalid amount received from " .. player.Name .. ": " .. tostring(amount))

@@ -33,7 +33,7 @@ function ShrineController.new(): ShrineController
 	local self = AbstractController.new("ShrineController") :: any
 	setmetatable(self, ShrineController)
 
-	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string)
+	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.ShrineAction)
 		-- Get models
 		local inventory = InventoryModel.get(tostring(player.UserId))
 		local shrine = ShrineModel.get("SERVER") -- Server-scoped model

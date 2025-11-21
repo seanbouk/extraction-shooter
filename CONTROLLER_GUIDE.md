@@ -65,8 +65,8 @@ function YourController.new(): YourController
 	local self = AbstractController.new("YourController") :: any
 	setmetatable(self, YourController)
 
-	-- Set up event listener
-	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string, ...)
+	-- Set up event listener with strongly-typed action parameter
+	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.YourFeatureAction, ...)
 		-- Check permissions/anti-cheat
 		if not canPlayerDoThis(player) then
 			warn("Unauthorized action attempt from " .. player.Name)
@@ -279,11 +279,13 @@ end
 
 ### 5. Type Safety
 
-Always use `--!strict` and type all parameters:
+Always use `--!strict` and type all parameters with the most specific types available:
 
 ```lua
-self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string, amount: number)
-	-- Fully typed function
+-- Use the exported action types from IntentActions for compile-time safety
+self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.CashMachineAction, amount: number)
+	-- Now Luau knows action can ONLY be "Withdraw" or "Deposit"
+	-- Provides autocomplete and catches invalid action strings at compile-time
 end)
 ```
 
@@ -337,7 +339,8 @@ function InventoryController.new(): InventoryController
 	local self = AbstractController.new("InventoryController") :: any
 	setmetatable(self, InventoryController)
 
-	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string, ...)
+	-- Use strongly-typed action parameter for compile-time safety
+	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.InventoryAction, ...)
 		local inventory = InventoryModel.get(tostring(player.UserId))
 
 		-- Use IntentActions constants
@@ -390,7 +393,8 @@ function CashMachineController.new(): CashMachineController
 	local self = AbstractController.new("CashMachineController") :: any
 	setmetatable(self, CashMachineController)
 
-	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string, amount: number)
+	-- Use strongly-typed action parameter for compile-time safety
+	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.CashMachineAction, amount: number)
 		-- Validate amount
 		if amount <= 0 then
 			warn("Invalid amount received from " .. player.Name .. ": " .. tostring(amount))
@@ -541,18 +545,35 @@ cashMachineIntent:FireServer(IntentActions.CashMachine.Withdraw, amount)
 **In Controllers (Server):**
 ```lua
 local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
+
+-- Use exported types for strong typing
 local ACTIONS = {
 	[IntentActions.CashMachine.Withdraw] = withdraw,
 	[IntentActions.CashMachine.Deposit] = deposit,
 }
+
+-- Type the action parameter with the exported type
+self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.CashMachineAction, ...)
+	-- Now Luau knows action can ONLY be "Withdraw" or "Deposit"
+end)
+```
+
+**Exported Types:**
+IntentActions.lua exports union types for each feature:
+```lua
+export type CashMachineAction = "Withdraw" | "Deposit"
+export type BazaarAction = "BuyTreasure"
+export type ShrineAction = "Donate"
 ```
 
 **Benefits:**
-- Type safety - prevents typos causing runtime errors
-- Autocomplete support in your IDE
-- Single source of truth for all action strings
-- Easy refactoring - change in one place, affects both views and controllers
-- No more magic strings scattered across the codebase
+- **Compile-time type safety** - prevents typos causing runtime errors
+- **Strong typing** - action parameters are constrained to valid values only
+- **Autocomplete support** - your IDE knows which actions are valid
+- **Single source of truth** for all action strings
+- **Easy refactoring** - change in one place, affects both views and controllers
+- **Self-documenting code** - developers can see valid actions from the type
+- **No more magic strings** scattered across the codebase
 
 ## Next Steps
 

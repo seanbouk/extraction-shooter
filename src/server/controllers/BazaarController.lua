@@ -34,7 +34,7 @@ function BazaarController.new(): BazaarController
 	setmetatable(self, BazaarController)
 
 	-- Set up event listener
-	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string)
+	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.BazaarAction)
 		local inventory = InventoryModel.get(tostring(player.UserId))
 		self:dispatchAction(ACTIONS, action, player, inventory, player)
 	end)

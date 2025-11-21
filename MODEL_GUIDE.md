@@ -51,8 +51,8 @@ Server-scoped models are **per-server instance** and **ephemeral** (not saved):
 All models inherit from `AbstractModel.lua` which provides:
 
 - **`new(modelName: string, ownerId: string, scope: ModelScope)`**: Constructor for creating new instances with model name, owner identifier, and scope
-- **`get(ownerId: string)`**: Static method to get or create an instance for a specific owner
-- **`remove(ownerId: string)`**: Static method to remove an instance (used for cleanup)
+- **`getOrCreate(modelName: string, ownerId: string, constructorFn: () -> AbstractModel)`**: Centralized registry management - gets existing instance or creates new one
+- **`removeInstance(modelName: string, ownerId: string)`**: Centralized instance removal for cleanup
 - **`fire(scope: "owner" | "all")`**: Broadcasts model state to clients and prints debug output
 - **`ownerId: string`**: Property storing the unique identifier for the model owner
 - **`remoteEvent: RemoteEvent`**: Auto-created RemoteEvent for state broadcasting (named `[ModelName]StateChanged`)
@@ -82,9 +82,6 @@ export type YourModel = typeof(setmetatable({} :: {
 	propertyName: propertyType,
 }, YourModel)) & AbstractModel.AbstractModel
 
--- Registry to store instances per owner
-local instances: { [string]: YourModel } = {}
-
 function YourModel.new(ownerId: string): YourModel
 	local self = AbstractModel.new("YourModel", ownerId, "User") :: any
 	setmetatable(self, YourModel)
@@ -96,14 +93,13 @@ function YourModel.new(ownerId: string): YourModel
 end
 
 function YourModel.get(ownerId: string): YourModel
-	if instances[ownerId] == nil then
-		instances[ownerId] = YourModel.new(ownerId)
-	end
-	return instances[ownerId]
+	return AbstractModel.getOrCreate("YourModel", ownerId, function()
+		return YourModel.new(ownerId)
+	end) :: YourModel
 end
 
 function YourModel.remove(ownerId: string): ()
-	instances[ownerId] = nil
+	AbstractModel.removeInstance("YourModel", ownerId)
 end
 
 -- Add your model's methods here
@@ -131,9 +127,6 @@ export type YourModel = typeof(setmetatable({} :: {
 	propertyName: propertyType,
 }, YourModel)) & AbstractModel.AbstractModel
 
--- Registry to store instances (typically just one with ownerId "SERVER")
-local instances: { [string]: YourModel } = {}
-
 function YourModel.new(ownerId: string): YourModel
 	local self = AbstractModel.new("YourModel", ownerId, "Server") :: any
 	setmetatable(self, YourModel)
@@ -145,14 +138,13 @@ function YourModel.new(ownerId: string): YourModel
 end
 
 function YourModel.get(ownerId: string): YourModel
-	if instances[ownerId] == nil then
-		instances[ownerId] = YourModel.new(ownerId)
-	end
-	return instances[ownerId]
+	return AbstractModel.getOrCreate("YourModel", ownerId, function()
+		return YourModel.new(ownerId)
+	end) :: YourModel
 end
 
 function YourModel.remove(ownerId: string): ()
-	instances[ownerId] = nil
+	AbstractModel.removeInstance("YourModel", ownerId)
 end
 
 -- Add your model's methods here
@@ -226,7 +218,7 @@ function YourModel.get(ownerId: string): YourModel
 end
 
 function YourModel.remove(ownerId: string): ()
-	instances[ownerId] = nil
+	AbstractModel.removeInstance("YourModel", ownerId)
 end
 
 -- Usage from a controller (User-scoped):

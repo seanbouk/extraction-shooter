@@ -8,8 +8,8 @@ local PersistenceServer = require(script.Parent.Parent.services.PersistenceServe
 local AbstractModel = {}
 AbstractModel.__index = AbstractModel
 
--- Registry to store model instances per owner
-local instances: { [string]: AbstractModel } = {}
+-- Global registry organized by model name
+local registries: { [string]: { [string]: AbstractModel } } = {}
 
 -- Store RemoteEvents for each model class (one per model class)
 local remoteEvents: { [string]: RemoteEvent } = {}
@@ -94,9 +94,32 @@ function AbstractModel.get(ownerId: string): AbstractModel
 	error("AbstractModel.get() should not be called directly. Use a concrete model class instead.")
 end
 
+-- Get or create a model instance using a constructor function
+function AbstractModel.getOrCreate(modelName: string, ownerId: string, constructorFn: () -> AbstractModel): AbstractModel
+	-- Initialize registry for this model if it doesn't exist
+	if not registries[modelName] then
+		registries[modelName] = {}
+	end
+
+	-- Get instance from registry if exists
+	if registries[modelName][ownerId] then
+		return registries[modelName][ownerId]
+	end
+
+	-- Create new instance using provided constructor
+	local instance = constructorFn()
+
+	-- Register it
+	registries[modelName][ownerId] = instance
+
+	return instance
+end
+
 -- Remove a model instance for the given owner (cleanup)
-function AbstractModel.remove(ownerId: string): ()
-	instances[ownerId] = nil
+function AbstractModel.removeInstance(modelName: string, ownerId: string): ()
+	if registries[modelName] then
+		registries[modelName][ownerId] = nil
+	end
 end
 
 -- Apply loaded data to the model instance (private method called by ModelRunner)

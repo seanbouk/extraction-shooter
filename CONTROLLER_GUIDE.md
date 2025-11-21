@@ -49,8 +49,11 @@ Create a new ModuleScript in `src/server/controllers/YourController.lua`:
 ```lua
 --!strict
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local AbstractController = require(script.Parent.AbstractController)
 local YourModel = require(script.Parent.Parent.models.user.YourModel) -- or .server.YourModel
+local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
 
 local YourController = {}
 YourController.__index = YourController
@@ -76,9 +79,10 @@ function YourController.new(): YourController
 		-- For Server-scoped models: get shared instance
 		-- local model = YourModel.get("SERVER")
 
-		if action == "SomeAction" then
+		-- Use IntentActions constants instead of magic strings
+		if action == IntentActions.YourFeature.SomeAction then
 			model:performAction(...)
-		elseif action == "AnotherAction" then
+		elseif action == IntentActions.YourFeature.AnotherAction then
 			model:performOtherAction(...)
 		end
 	end)
@@ -187,20 +191,23 @@ See `src/client/CashMachineTest.client.lua` for a complete example of how to:
 
 ## Client-Side Usage
 
-From a LocalScript (View), fire intents to your controller:
+From a LocalScript (View), fire intents to your controller using IntentActions constants:
 
 ```lua
 --!strict
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+-- Import shared constants
+local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+
 -- Wait for the remote event
 local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
 local eventsFolder = sharedFolder:WaitForChild("Events")
 local yourIntent = eventsFolder:WaitForChild("YourIntent") :: RemoteEvent
 
--- Fire an intent
-yourIntent:FireServer("ActionName", arg1, arg2)
+-- Fire an intent with typed constant (not magic string)
+yourIntent:FireServer(IntentActions.YourFeature.ActionName, arg1, arg2)
 ```
 
 ## Best Practices
@@ -217,8 +224,8 @@ Use intent-based names that describe what the player is **trying** to do, not co
 **NEVER** trust the client. Always validate:
 
 ```lua
--- Validate action
-if action ~= "ValidAction1" and action ~= "ValidAction2" then
+-- Validate action (use IntentActions constants)
+if action ~= IntentActions.YourFeature.ValidAction1 and action ~= IntentActions.YourFeature.ValidAction2 then
 	warn("Invalid action: " .. tostring(action))
 	return
 end
@@ -282,14 +289,15 @@ end)
 
 ### 6. Action Patterns
 
-Use action-based patterns for multiple operations:
+Use action-based patterns for multiple operations with IntentActions constants:
 
 ```lua
-if action == "Withdraw" then
+-- Use IntentActions constants instead of magic strings
+if action == IntentActions.CashMachine.Withdraw then
 	model:addGold(amount)
-elseif action == "Deposit" then
+elseif action == IntentActions.CashMachine.Deposit then
 	model:addGold(-amount)
-elseif action == "Transfer" then
+elseif action == IntentActions.CashMachine.Transfer then
 	model:transferGold(targetPlayer, amount)
 else
 	warn("Unknown action: " .. action)
@@ -322,6 +330,9 @@ end
 For controllers handling multiple related actions:
 
 ```lua
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
+
 function InventoryController.new(): InventoryController
 	local self = AbstractController.new("InventoryController") :: any
 	setmetatable(self, InventoryController)
@@ -329,13 +340,14 @@ function InventoryController.new(): InventoryController
 	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string, ...)
 		local inventory = InventoryModel.get(tostring(player.UserId))
 
-		if action == "Equip" then
+		-- Use IntentActions constants
+		if action == IntentActions.Inventory.Equip then
 			local itemId = ...
 			inventory:equipItem(player, itemId)
-		elseif action == "Unequip" then
+		elseif action == IntentActions.Inventory.Unequip then
 			local slot = ...
 			inventory:unequipSlot(player, slot)
-		elseif action == "Drop" then
+		elseif action == IntentActions.Inventory.Drop then
 			local itemId = ...
 			inventory:dropItem(player, itemId)
 		else
@@ -347,11 +359,16 @@ function InventoryController.new(): InventoryController
 end
 ```
 
-### Multi-Action Controller (lookup table pattern)
+### Multi-Action Controller (lookup table pattern - RECOMMENDED)
 
-For better scalability and maintainability, use named functions with a lookup table:
+For better scalability and maintainability, use named functions with a lookup table and IntentActions constants:
 
 ```lua
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local AbstractController = require(script.Parent.AbstractController)
+local InventoryModel = require(script.Parent.Parent.models.user.InventoryModel)
+local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
+
 -- Define action functions at module level
 local function withdraw(inventory: any, amount: number, player: Player)
 	inventory:addGold(amount)
@@ -363,10 +380,10 @@ local function deposit(inventory: any, amount: number, player: Player)
 	print(player.Name .. " deposited " .. amount .. " gold. New balance: " .. inventory.gold)
 end
 
--- Map action names to functions
+-- Map IntentActions constants to functions
 local ACTIONS = {
-	Withdraw = withdraw,
-	Deposit = deposit,
+	[IntentActions.CashMachine.Withdraw] = withdraw,
+	[IntentActions.CashMachine.Deposit] = deposit,
 }
 
 function CashMachineController.new(): CashMachineController
@@ -391,13 +408,15 @@ function CashMachineController.new(): CashMachineController
 end
 ```
 
-**Benefits of named function + lookup table pattern:**
+**Benefits of named function + lookup table + IntentActions pattern:**
 - Easy to add new actions - define the function and add it to the table
 - Each action is a named, reusable function (better for testing and debugging)
 - Clean separation between validation and business logic
 - Very readable event handler
 - Consistent code organization across controllers
 - AbstractController's `dispatchAction` method handles action validation automatically
+- **Type-safe action strings** - no magic strings, prevents typos
+- **Single source of truth** - all actions defined in IntentActions module
 
 ### Anti-Cheat Integration
 
@@ -502,12 +521,38 @@ yourIntent:FireServer("TestAction", testData)
 
 ```
 1. Player clicks button (View)
-2. View fires RemoteEvent: PurchaseIntent:FireServer("BuySword", "FireSword")
+2. View fires RemoteEvent: PurchaseIntent:FireServer(IntentActions.Shop.BuySword, "FireSword")
 3. Controller receives intent, validates player can afford it
 4. Controller updates InventoryModel: inventory:addItem(player, "FireSword")
 5. Model updates its state and broadcasts to all clients
 6. Views receive broadcast and update UI
 ```
+
+### Shared Constants (IntentActions)
+
+All intent action strings are centralized in `src/shared/IntentActions.lua`:
+
+**In Views (Client):**
+```lua
+local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+cashMachineIntent:FireServer(IntentActions.CashMachine.Withdraw, amount)
+```
+
+**In Controllers (Server):**
+```lua
+local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
+local ACTIONS = {
+	[IntentActions.CashMachine.Withdraw] = withdraw,
+	[IntentActions.CashMachine.Deposit] = deposit,
+}
+```
+
+**Benefits:**
+- Type safety - prevents typos causing runtime errors
+- Autocomplete support in your IDE
+- Single source of truth for all action strings
+- Easy refactoring - change in one place, affects both views and controllers
+- No more magic strings scattered across the codebase
 
 ## Next Steps
 

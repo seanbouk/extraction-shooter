@@ -24,6 +24,9 @@ local Players = game:GetService("Players")
 
 local localPlayer = Players.LocalPlayer
 
+-- Import shared constants
+local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+
 -- Get the remote events
 local eventsFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
 local bazaarIntent = eventsFolder:WaitForChild("BazaarIntent") :: RemoteEvent
@@ -109,7 +112,7 @@ local function setupBazaar(bazaar: Instance)
 		sound:Play()
 
 		-- Send intent to server to buy treasure
-		bazaarIntent:FireServer("BuyTreasure")
+		bazaarIntent:FireServer(IntentActions.Bazaar.BuyTreasure)
 	end)
 
 	-- Listen for inventory updates to update state

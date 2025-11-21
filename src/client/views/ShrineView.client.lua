@@ -7,6 +7,9 @@ local TweenService = game:GetService("TweenService")
 
 local localPlayer = Players.LocalPlayer
 
+-- Import shared constants
+local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+
 -- Get remote events
 local eventsFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
 local shrineIntent = eventsFolder:WaitForChild("ShrineIntent") :: RemoteEvent
@@ -98,7 +101,7 @@ local function setupShrine(shrine: Instance)
 		sound:Play()
 
 		-- Send intent to server
-		shrineIntent:FireServer("Donate")
+		shrineIntent:FireServer(IntentActions.Shrine.Donate)
 	end)
 
 	-- Listen for shrine state changes (ALL players see this - no ownerId filter!)

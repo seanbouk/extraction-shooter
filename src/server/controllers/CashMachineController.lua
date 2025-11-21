@@ -1,7 +1,10 @@
 --!strict
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local AbstractController = require(script.Parent.AbstractController)
 local InventoryModel = require(script.Parent.Parent.models.user.InventoryModel)
+local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
 
 local CashMachineController = {}
 CashMachineController.__index = CashMachineController
@@ -20,8 +23,8 @@ local function deposit(inventory: any, amount: number, player: Player)
 end
 
 local ACTIONS = {
-	Withdraw = withdraw,
-	Deposit = deposit,
+	[IntentActions.CashMachine.Withdraw] = withdraw,
+	[IntentActions.CashMachine.Deposit] = deposit,
 }
 
 function CashMachineController.new(): CashMachineController

@@ -48,6 +48,9 @@ Create a new LocalScript in `src/client/views/YourView.client.lua`:
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+-- Import shared constants
+local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+
 -- Constants
 local TAG_NAME = "YourTag"
 
@@ -65,7 +68,7 @@ local function setupInstance(instance: Instance)
 		-- local intent = ReplicatedStorage:WaitForChild("Shared")
 		-- 	:WaitForChild("Events")
 		-- 	:WaitForChild("YourIntent") :: RemoteEvent
-		-- intent:FireServer("Action", data)
+		-- intent:FireServer(IntentActions.YourFeature.Action, data)
 	end)
 
 	print(`YourView: Setup complete for {instance.Name}`)
@@ -107,6 +110,7 @@ The `CashMachineView.client.lua` file demonstrates **Pattern B: Intent-Based wit
 ### Pattern Used:
 ```lua
 -- At the top of the file
+local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
 local cashMachineIntent = eventsFolder:WaitForChild("CashMachineIntent") :: RemoteEvent
 local WITHDRAW_AMOUNT = 50
 
@@ -117,8 +121,8 @@ proximityPrompt.Triggered:Connect(function(player: Player)
 	particleEmitter:Emit(particleCount)
 	sound:Play()
 
-	-- Send intent to server
-	cashMachineIntent:FireServer("Withdraw", WITHDRAW_AMOUNT)
+	-- Send intent to server (using typed constant)
+	cashMachineIntent:FireServer(IntentActions.CashMachine.Withdraw, WITHDRAW_AMOUNT)
 end)
 ```
 
@@ -254,8 +258,8 @@ button.Activated:Connect(function()
 	-- Immediate feedback
 	button.BackgroundColor3 = Color3.new(0, 1, 0)
 
-	-- Send to server
-	intent:FireServer("Purchase", itemId)
+	-- Send to server (using typed constant)
+	intent:FireServer(IntentActions.Shop.Purchase, itemId)
 
 	-- Wait for confirmation (in a separate listener)
 	-- confirmEvent.OnClientEvent:Connect(function(success)
@@ -335,6 +339,7 @@ modelStateChanged:FireServer()
 - Views **send intents** to controllers via RemoteEvents
 - Views **never directly** modify Models
 - Communication is always through RemoteEvents
+- Views use **IntentActions** constants instead of magic strings for type safety
 
 ### Views ← Models
 - Views **observe** state changes broadcast by Models
@@ -344,11 +349,30 @@ modelStateChanged:FireServer()
 
 ```
 1. User clicks button (View provides immediate feedback)
-2. View fires intent: PurchaseIntent:FireServer("BuySword", "FireSword")
+2. View fires intent: PurchaseIntent:FireServer(IntentActions.Shop.BuySword, "FireSword")
 3. Controller validates and updates Model
 4. Model broadcasts state change to all clients
 5. View receives broadcast and updates UI with final state
 ```
+
+### Shared Constants (IntentActions)
+
+All intent action strings are centralized in `src/shared/IntentActions.lua`:
+
+```lua
+local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+
+-- Use typed constants instead of magic strings
+cashMachineIntent:FireServer(IntentActions.CashMachine.Withdraw, amount)
+bazaarIntent:FireServer(IntentActions.Bazaar.BuyTreasure)
+shrineIntent:FireServer(IntentActions.Shrine.Donate)
+```
+
+**Benefits:**
+- Type safety - prevents typos
+- Autocomplete support in your IDE
+- Single source of truth for all action strings
+- Easy refactoring - change in one place
 
 ## Next Steps
 

@@ -1,8 +1,11 @@
 --!strict
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local AbstractController = require(script.Parent.AbstractController)
 local InventoryModel = require(script.Parent.Parent.models.user.InventoryModel)
 local ShrineModel = require(script.Parent.Parent.models.server.ShrineModel)
+local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
 
 local ShrineController = {}
 ShrineController.__index = ShrineController
@@ -23,7 +26,7 @@ local function donate(inventory: any, shrine: any, player: Player)
 end
 
 local ACTIONS = {
-	Donate = donate,
+	[IntentActions.Shrine.Donate] = donate,
 }
 
 function ShrineController.new(): ShrineController

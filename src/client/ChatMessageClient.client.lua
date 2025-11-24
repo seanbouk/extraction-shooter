@@ -3,8 +3,9 @@
 --[[
 	ChatMessageClient
 
-	Displays system messages from the server in the player's chat window.
+	Displays state change messages from the server in the player's chat window.
 	Used by SlashCommandService to show command results and errors.
+	Follows the StateChanged pattern for consistency with MVC architecture.
 ]]
 
 local TextChatService = game:GetService("TextChatService")
@@ -14,7 +15,7 @@ local ChatMessageClient = {}
 
 function ChatMessageClient.new(): ()
 	local eventsFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
-	local messageRemote = eventsFolder:WaitForChild("SlashCommandMessage") :: RemoteEvent
+	local messageRemote = eventsFolder:WaitForChild("SlashCommandStateChanged") :: RemoteEvent
 
 	messageRemote.OnClientEvent:Connect(function(message: string)
 		local textChannels = TextChatService:WaitForChild("TextChannels")

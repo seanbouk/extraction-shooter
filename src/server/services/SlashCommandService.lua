@@ -28,12 +28,12 @@ local MIN_RANK = 200
 -- Registered models and controllers
 local userModels: { [string]: any } = {}
 local serverModels: { [string]: any } = {}
-local controllers: { [string]: { instance: any, remoteEvent: RemoteEvent } } = {}
+local controllers: { [string]: { instance: any, remoteEvent: RemoteEvent, originalName: string } } = {}
 
--- RemoteEvent for command execution
+-- RemoteEvent for command execution (client → server intent)
 local commandRemote: RemoteEvent = nil
 
--- RemoteEvent for sending chat messages to clients
+-- RemoteEvent for state changes (server → client feedback)
 local messageRemote: RemoteEvent = nil
 
 -- Group ID (determined at runtime)
@@ -286,14 +286,15 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 		if controllerInfo then
 			local actions = {}
 
-			-- Try to get available actions from the controller
-			if type(controllerInfo.instance.getAvailableActions) == "function" then
-				local success, result = pcall(function()
-					return controllerInfo.instance:getAvailableActions()
-				end)
+			-- Parse controller name to match IntentActions key
+			-- e.g., "BazaarController" → "Bazaar", "CashMachineController" → "CashMachine"
+			local controllerKey = controllerInfo.originalName:gsub("Controller$", "")
 
-				if success and result then
-					actions = result
+			-- Get actions from IntentActions module
+			local actionsTable = IntentActions[controllerKey]
+			if actionsTable then
+				for _, actionName in pairs(actionsTable) do
+					table.insert(actions, actionName)
 				end
 			end
 
@@ -402,10 +403,11 @@ function SlashCommandService:registerControllers(controllerList: { { name: strin
 		local name = controllerInfo.name
 		local instance = controllerInfo.instance
 
-		-- Store controller instance and its RemoteEvent
+		-- Store controller instance, RemoteEvent, and original name for IntentActions lookup
 		controllers[name:lower()] = {
 			instance = instance,
 			remoteEvent = instance.remoteEvent,
+			originalName = name,
 		}
 	end
 end
@@ -458,15 +460,15 @@ function SlashCommandService:init(): ()
 		groupId = game.CreatorId
 	end
 
-	-- Create RemoteEvent for commands
+	-- Create RemoteEvent for commands (follows Intent pattern)
 	local eventsFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
 	commandRemote = Instance.new("RemoteEvent")
-	commandRemote.Name = "SlashCommand"
+	commandRemote.Name = "SlashCommandIntent"
 	commandRemote.Parent = eventsFolder
 
-	-- Create RemoteEvent for chat messages
+	-- Create RemoteEvent for state changes (follows StateChanged pattern)
 	messageRemote = Instance.new("RemoteEvent")
-	messageRemote.Name = "SlashCommandMessage"
+	messageRemote.Name = "SlashCommandStateChanged"
 	messageRemote.Parent = eventsFolder
 
 	-- Listen for command events

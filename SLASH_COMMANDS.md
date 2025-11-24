@@ -14,11 +14,22 @@ Slash commands provide a quick way for high-rank users (developers, moderators, 
 
 ## Architecture Overview
 
-The slash command system consists of three components:
+The slash command system consists of three components and follows the same Intent/StateChanged patterns as the rest of the MVC architecture:
 
 - **SlashCommandService** (server): Discovers models and controllers, validates permissions, executes commands
-- **SlashCommandClient** (client): Listens to TextChatService and sends commands to server
-- **ChatMessageClient** (client): Displays command results and help text in the chat window
+- **SlashCommandClient** (client): Listens to TextChatService and sends `SlashCommandIntent` to server
+- **ChatMessageClient** (client): Receives `SlashCommandStateChanged` events and displays in chat window
+
+### Event Naming Consistency
+
+The slash command system follows the universal MVC event naming conventions:
+
+- **`SlashCommandIntent`** (Client → Server): Command execution requests from client
+- **`SlashCommandStateChanged`** (Server → Client): Command feedback and results
+
+This matches the pattern used by all other systems:
+- Controllers use `[Name]Intent` events (e.g., `BazaarIntent`, `ShrineIntent`)
+- Models use `[Name]StateChanged` events (e.g., `InventoryStateChanged`, `ShrineStateChanged`)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -132,26 +143,18 @@ Shows all available methods (for models) or actions (for controllers) with usage
 
 The help system automatically:
 - **Discovers model methods** via runtime introspection of the model metatable
-- **Shows controller actions** if the controller implements `getAvailableActions()` method
+- **Discovers controller actions** by reading from the IntentActions module
 - **Filters out** private methods (starting with `_`) and internal implementation details
 - **Displays in chat** so all players with permission can see the information
 
-### Making Controllers Discoverable
+### Zero Configuration Required
 
-To enable `/help` discovery for controllers, add a `getAvailableActions()` method:
+Both models and controllers are **fully discoverable without any additional code**:
 
-```lua
--- In your controller (e.g., BazaarController.lua)
-function BazaarController:getAvailableActions(): { string }
-    local actions = {}
-    for action, _ in pairs(ACTIONS) do
-        table.insert(actions, action)
-    end
-    return actions
-end
-```
+- **Models**: Methods are discovered from the model's metatable at runtime
+- **Controllers**: Actions are discovered from the `IntentActions` module automatically
 
-This is optional but recommended for better developer experience.
+No per-model or per-controller configuration needed!
 
 ## Available Commands
 

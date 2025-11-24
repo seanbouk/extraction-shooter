@@ -14,7 +14,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local SlashCommandClient = {}
 
--- RemoteEvent for sending commands to server
+-- RemoteEvent for sending command intents to server
 local commandRemote: RemoteEvent = nil
 
 --[[
@@ -40,9 +40,9 @@ end
 	Sets up listeners for slash commands
 ]]
 function SlashCommandClient.new(): ()
-	-- Wait for RemoteEvent
+	-- Wait for RemoteEvent (follows Intent pattern)
 	local eventsFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
-	commandRemote = eventsFolder:WaitForChild("SlashCommand") :: RemoteEvent
+	commandRemote = eventsFolder:WaitForChild("SlashCommandIntent") :: RemoteEvent
 
 	-- Listen for TextChatCommands being triggered
 	local textCommands = TextChatService:FindFirstChild("TextChatCommands")

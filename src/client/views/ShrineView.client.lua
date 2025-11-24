@@ -54,6 +54,12 @@ local function setupShrine(shrine: Instance)
 	local originalYScale = textBox.Position.Y.Scale
 	local originalYOffset = textBox.Position.Y.Offset
 
+	-- Per-shrine animation state to prevent race conditions
+	local activeTween1: Tween? = nil
+	local activeTween2: Tween? = nil
+	local tween1Connection: RBXScriptConnection? = nil
+	local tween2Connection: RBXScriptConnection? = nil
+
 	-- Initialize position with X offset at 400
 	textBox.Position = UDim2.new(
 		originalXScale,
@@ -102,6 +108,22 @@ local function setupShrine(shrine: Instance)
 			local username = getPlayerNameFromUserId(shrineData.userId)
 			textBox.Text = "Thank you, " .. username .. "!"
 
+			-- CLEANUP: Cancel any running tweens and disconnect event handlers
+			if activeTween1 then
+				activeTween1:Cancel()
+			end
+			if activeTween2 then
+				activeTween2:Cancel()
+			end
+			if tween1Connection then
+				tween1Connection:Disconnect()
+				tween1Connection = nil
+			end
+			if tween2Connection then
+				tween2Connection:Disconnect()
+				tween2Connection = nil
+			end
+
 			-- Reset position to starting point (400 offset)
 			textBox.Position = UDim2.new(originalXScale, 400, originalYScale, originalYOffset)
 
@@ -126,28 +148,30 @@ local function setupShrine(shrine: Instance)
 			)
 
 			-- First tween: 400 -> 0 (2 seconds)
-			local tween1 = TweenService:Create(textBox, tweenInfo1, {
+			activeTween1 = TweenService:Create(textBox, tweenInfo1, {
 				Position = UDim2.new(originalXScale, 0, originalYScale, originalYOffset)
 			})
 
 			-- Second tween: 0 -> -300 (3 seconds)
-			local tween2 = TweenService:Create(textBox, tweenInfo2, {
+			activeTween2 = TweenService:Create(textBox, tweenInfo2, {
 				Position = UDim2.new(originalXScale, -300, originalYScale, originalYOffset)
 			})
 
 			-- Chain them with 1 second delay (start at 3 seconds total)
-			tween1.Completed:Connect(function()
+			tween1Connection = activeTween1.Completed:Connect(function()
 				task.wait(1)
-				tween2:Play()
+				if activeTween2 then
+					activeTween2:Play()
+				end
 			end)
 
 			-- Reset position to 400 when animation completes
-			tween2.Completed:Connect(function()
+			tween2Connection = activeTween2.Completed:Connect(function()
 				textBox.Position = UDim2.new(originalXScale, 400, originalYScale, originalYOffset)
 			end)
 
 			-- Start the animation
-			tween1:Play()
+			activeTween1:Play()
 		end
 	end)
 

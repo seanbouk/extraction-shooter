@@ -21,8 +21,6 @@ local commandRemote: RemoteEvent = nil
 	Sends a command to the server for execution
 ]]
 local function sendCommand(commandString: string): ()
-	print(`[SlashCommandClient] Attempting to send command: "{commandString}"`)
-
 	if not commandRemote then
 		warn("[SlashCommandClient] Command remote not found")
 		return
@@ -33,8 +31,6 @@ local function sendCommand(commandString: string): ()
 		commandString = commandString:sub(2)
 	end
 
-	print(`[SlashCommandClient] Sending to server: "{commandString}"`)
-
 	-- Send to server
 	commandRemote:FireServer(commandString)
 end
@@ -44,24 +40,16 @@ end
 	Sets up listeners for slash commands
 ]]
 function SlashCommandClient.new(): ()
-	print("==================== [SlashCommandClient] Starting initialization... ====================")
-	warn("==================== [SlashCommandClient] WARN TEST - This should show up! ====================")
-
 	-- Wait for RemoteEvent
 	local eventsFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
 	commandRemote = eventsFolder:WaitForChild("SlashCommand") :: RemoteEvent
-	print("[SlashCommandClient] Found SlashCommand RemoteEvent")
 
 	-- Listen for TextChatCommands being triggered
 	local textCommands = TextChatService:FindFirstChild("TextChatCommands")
 	if textCommands then
-		print(`[SlashCommandClient] Found TextChatCommands with {#textCommands:GetChildren()} commands`)
-
 		for _, command in textCommands:GetChildren() do
 			if command:IsA("TextChatCommand") then
-				print(`[SlashCommandClient] Registering listener for command: {command.PrimaryAlias}`)
 				command.Triggered:Connect(function(textSource, unfilteredText)
-					print(`[SlashCommandClient] Command triggered: {command.PrimaryAlias} with text: "{unfilteredText}"`)
 					sendCommand(unfilteredText)
 				end)
 			end
@@ -70,9 +58,7 @@ function SlashCommandClient.new(): ()
 		-- Listen for new commands being added (for late registration)
 		textCommands.ChildAdded:Connect(function(command)
 			if command:IsA("TextChatCommand") then
-				print(`[SlashCommandClient] New command added: {command.PrimaryAlias}`)
 				command.Triggered:Connect(function(textSource, unfilteredText)
-					print(`[SlashCommandClient] Command triggered: {command.PrimaryAlias} with text: "{unfilteredText}"`)
 					sendCommand(unfilteredText)
 				end)
 			end
@@ -80,8 +66,6 @@ function SlashCommandClient.new(): ()
 	else
 		warn("[SlashCommandClient] TextChatCommands not found - slash commands may not work")
 	end
-
-	print("[SlashCommandClient] Initialized")
 end
 
 -- Initialize immediately when script runs

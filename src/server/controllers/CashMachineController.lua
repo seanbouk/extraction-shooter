@@ -14,12 +14,10 @@ export type CashMachineController = typeof(setmetatable({}, CashMachineControlle
 
 local function withdraw(inventory: any, amount: number, player: Player)
 	inventory:addGold(amount)
-	print(player.Name .. " withdrew " .. amount .. " gold. New balance: " .. inventory.gold)
 end
 
 local function deposit(inventory: any, amount: number, player: Player)
 	inventory:addGold(-amount)
-	print(player.Name .. " deposited " .. amount .. " gold. New balance: " .. inventory.gold)
 end
 
 local ACTIONS = {

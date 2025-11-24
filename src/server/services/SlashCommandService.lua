@@ -160,19 +160,14 @@ end
 	Format: commandString = "targetname methodname args..."
 ]]
 local function handleCommand(player: Player, commandString: string): ()
-	print(`[SlashCommand] Received command from {player.Name}: "{commandString}"`)
-
 	-- Check permissions
 	if not hasPermission(player) then
 		warn(`[SlashCommand] Player {player.Name} attempted to use slash command without permission (rank: {player:GetRankInGroup(groupId or 0)})`)
 		return
 	end
 
-	print(`[SlashCommand] Permission check passed for {player.Name}`)
-
 	-- Parse command string
 	local parts = string.split(commandString, " ")
-	print(`[SlashCommand] Parsed {#parts} parts from command`)
 
 	if #parts < 2 then
 		warn(`[SlashCommand] Invalid command format from {player.Name}: {commandString}`)
@@ -183,8 +178,6 @@ local function handleCommand(player: Player, commandString: string): ()
 	local methodName = parts[2]
 	local argString = string.sub(commandString, #targetName + #methodName + 3) -- +3 for two spaces and 1-index
 	local args = parseArguments(argString)
-
-	print(`[SlashCommand] Target: {targetName}, Method: {methodName}, Args: {#args}`)
 
 	-- Route to controller or model based on name
 	local success, message
@@ -197,9 +190,7 @@ local function handleCommand(player: Player, commandString: string): ()
 	end
 
 	-- Send feedback to player
-	if success then
-		print(`[SlashCommand] SUCCESS - {player.Name}: {message}`)
-	else
+	if not success then
 		warn(`[SlashCommand] FAILED - {player.Name}: {message}`)
 	end
 end
@@ -215,15 +206,10 @@ function SlashCommandService:registerModels(modelList: { { class: any, name: str
 
 		if scope == "User" then
 			userModels[name:lower()] = modelClass
-			print(`[SlashCommandService] Registered user model: {name}`)
 		elseif scope == "Server" then
 			serverModels[name:lower()] = modelClass
-			print(`[SlashCommandService] Registered server model: {name}`)
 		end
 	end
-
-	local totalModels = #modelList
-	print(`[SlashCommandService] Total models registered: {totalModels}`)
 end
 
 --[[
@@ -239,11 +225,7 @@ function SlashCommandService:registerControllers(controllerList: { { name: strin
 			instance = instance,
 			remoteEvent = instance.remoteEvent,
 		}
-
-		print(`[SlashCommandService] Registered controller: {name}`)
 	end
-
-	print(`[SlashCommandService] Total controllers registered: {#controllerList}`)
 end
 
 --[[
@@ -276,8 +258,6 @@ function SlashCommandService:createTextChatCommands(): ()
 		command.PrimaryAlias = `/{controllerName:lower()}`
 		command.Parent = textCommands
 	end
-
-	print("[SlashCommandService] TextChatCommands created")
 end
 
 --[[
@@ -288,9 +268,6 @@ function SlashCommandService:init(): ()
 	-- Determine if game is owned by a group
 	if game.CreatorType == Enum.CreatorType.Group then
 		groupId = game.CreatorId
-		print(`[SlashCommandService] Game owned by group {groupId}. Rank {MIN_RANK}+ required.`)
-	else
-		print(`[SlashCommandService] Game owned by user {game.CreatorId}. All players allowed.`)
 	end
 
 	-- Create RemoteEvent for commands
@@ -303,8 +280,6 @@ function SlashCommandService:init(): ()
 	commandRemote.OnServerEvent:Connect(function(player: Player, commandString: string)
 		handleCommand(player, commandString)
 	end)
-
-	print("[SlashCommandService] Initialized")
 end
 
 return SlashCommandService

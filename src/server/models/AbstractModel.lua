@@ -71,13 +71,6 @@ function AbstractModel.new(modelName: string, ownerId: string, scope: ModelScope
 					if instance then
 						-- Send current state to this player (skip persistence)
 						instance:fire("owner", true)
-						print(
-							string.format(
-								"[AbstractModel] Client ready - sent initial state for %s to player %s",
-								modelName,
-								player.Name
-							)
-						)
 					end
 				end
 			end
@@ -135,14 +128,6 @@ function AbstractModel:_applyLoadedData(loadedData: { [string]: any }?): ()
 			self[key] = value
 		end
 	end
-
-	print(
-		string.format(
-			"[AbstractModel] Applied loaded data to %s (owner: %s)",
-			self._modelName,
-			self.ownerId
-		)
-	)
 end
 
 function AbstractModel:fire(scope: "owner" | "all", skipPersistence: boolean?): ()
@@ -156,11 +141,6 @@ function AbstractModel:fire(scope: "owner" | "all", skipPersistence: boolean?): 
 		PersistenceService:queueWrite(self._modelName, self.ownerId, self)
 	end
 
-	print("=== Firing " .. tostring(self) .. " (scope: " .. scope .. ") ===")
-	for key, value in pairs(self) do
-		print(tostring(key) .. ": " .. tostring(value))
-	end
-
 	-- Broadcast based on scope
 	if scope == "owner" then
 		-- Send to owning player only (if it's a valid UserId)
@@ -172,9 +152,6 @@ function AbstractModel:fire(scope: "owner" | "all", skipPersistence: boolean?): 
 			else
 				warn("Could not find player with UserId: " .. tostring(self.ownerId))
 			end
-		else
-			-- Not a valid UserId (probably a test), skip broadcasting
-			print("Skipping broadcast - ownerId is not a valid UserId: " .. tostring(self.ownerId))
 		end
 	elseif scope == "all" then
 		-- Send to all players

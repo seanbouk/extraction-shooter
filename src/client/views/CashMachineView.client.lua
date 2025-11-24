@@ -53,8 +53,6 @@ local function setupCashMachine(cashMachine: Instance)
 		-- Send intent to server to withdraw gold
 		cashMachineIntent:FireServer(IntentActions.CashMachine.Withdraw, WITHDRAW_AMOUNT)
 	end)
-
-	print(`CashMachineView: Setup complete for {cashMachine.Name}`)
 end
 
 -- Initialize all existing cash machines
@@ -70,5 +68,3 @@ CollectionService:GetInstanceAddedSignal(CASH_MACHINE_TAG):Connect(function(cash
 		setupCashMachine(cashMachine)
 	end)
 end)
-
-print("CashMachineView: Initialized")

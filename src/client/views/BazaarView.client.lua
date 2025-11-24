@@ -118,8 +118,6 @@ local function setupBazaar(bazaar: Instance)
 			updateState(currentGold)
 		end
 	end)
-
-	print(`BazaarView: Setup complete for {bazaar.Name}`)
 end
 
 -- Initialize all existing bazaars
@@ -135,5 +133,3 @@ CollectionService:GetInstanceAddedSignal(BAZAAR_TAG):Connect(function(bazaar: In
 		setupBazaar(bazaar)
 	end)
 end)
-
-print("BazaarView: Initialized")

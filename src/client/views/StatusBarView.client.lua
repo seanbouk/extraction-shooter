@@ -65,8 +65,6 @@ local function setupStatusBar(statusBar: Instance)
 
 	-- Request initial state from server now that listener is set up
 	inventoryStateChanged:FireServer()
-
-	print(`StatusBarView: Setup complete for {statusBar.Name}`)
 end
 
 -- Initialize all existing status bars
@@ -82,5 +80,3 @@ CollectionService:GetInstanceAddedSignal(STATUS_BAR_TAG):Connect(function(status
 		setupStatusBar(statusBar)
 	end)
 end)
-
-print("StatusBarView: Initialized")

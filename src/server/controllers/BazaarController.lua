@@ -19,7 +19,6 @@ local function buyTreasure(inventory: any, player: Player)
 	-- Attempt to spend gold
 	if inventory:spendGold(TREASURE_COST) then
 		inventory:addTreasure(TREASURE_AMOUNT)
-		print(player.Name .. " bought " .. TREASURE_AMOUNT .. " treasure for " .. TREASURE_COST .. " gold. New balance: " .. inventory.gold .. " gold, " .. inventory.treasure .. " treasure")
 	else
 		warn(player.Name .. " attempted to buy treasure but didn't have enough gold. Current: " .. inventory.gold .. ", Required: " .. TREASURE_COST)
 	end

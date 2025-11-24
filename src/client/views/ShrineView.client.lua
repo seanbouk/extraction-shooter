@@ -186,8 +186,6 @@ local function setupShrine(shrine: Instance)
 
 	-- Request initial state
 	inventoryStateChanged:FireServer()
-
-	print("ShrineView: Setup complete for " .. shrine.Name)
 end
 
 -- Initialize existing shrines
@@ -203,5 +201,3 @@ CollectionService:GetInstanceAddedSignal(SHRINE_TAG):Connect(function(shrine: In
 		setupShrine(shrine)
 	end)
 end)
-
-print("ShrineView: Initialized")

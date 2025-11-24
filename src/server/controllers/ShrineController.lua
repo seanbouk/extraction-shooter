@@ -19,7 +19,6 @@ local function donate(inventory: any, shrine: any, player: Player)
 	-- Attempt to spend treasure
 	if inventory:spendTreasure(DONATION_AMOUNT) then
 		shrine:donate(tostring(player.UserId), DONATION_AMOUNT)
-		print(player.Name .. " donated " .. DONATION_AMOUNT .. " treasure to the shrine")
 	else
 		warn(player.Name .. " attempted to donate to shrine but didn't have enough treasure")
 	end

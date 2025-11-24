@@ -107,6 +107,17 @@ Views are LocalScripts that observe state and update visual elements:
 
 **[📖 See the View Development Guide](VIEW_GUIDE.md)** for step-by-step instructions on creating views. The guide includes a complete example using `CashMachineView`.
 
+### Slash Commands (Admin/Debug Tool)
+
+Slash commands provide a quick way for high-rank users to execute model methods directly from chat:
+
+- Convention-based: Any model method automatically becomes a slash command
+- Permission-controlled: Only rank 200+ users in the owning group
+- Zero configuration: Commands auto-discovered at server startup
+- Examples: `/inventorymodel addGold 100`, `/shrinemodel donate 123 50`
+
+**[📖 See the Slash Commands Guide](SLASH_COMMANDS.md)** for complete documentation on using and customizing slash commands.
+
 ## Key Principles
 
 ### 1. Intents, Not Commands

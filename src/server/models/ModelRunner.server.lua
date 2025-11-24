@@ -54,6 +54,12 @@ if serverFolder then
 	discoverModelsInFolder(serverFolder, "Server")
 end
 
+-- Register models with SlashCommandService and initialize it
+local SlashCommandService = require(script.Parent.Parent.services.SlashCommandService)
+SlashCommandService:init()
+SlashCommandService:registerModels(modelInfos)
+SlashCommandService:createTextChatCommands()
+
 -- Initialize Server-scoped models once (ephemeral, shared by all players)
 print("ModelRunner: Initializing Server-scoped models")
 for _, modelInfo in modelInfos do

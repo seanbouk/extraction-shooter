@@ -33,8 +33,22 @@ local controllers: { [string]: { instance: any, remoteEvent: RemoteEvent } } = {
 -- RemoteEvent for command execution
 local commandRemote: RemoteEvent = nil
 
+-- RemoteEvent for sending chat messages to clients
+local messageRemote: RemoteEvent = nil
+
 -- Group ID (determined at runtime)
 local groupId: number? = nil
+
+--[[
+	Sends a message to the player's chat window
+]]
+local function sendChatMessage(player: Player, message: string): ()
+	if messageRemote then
+		messageRemote:FireClient(player, message)
+	else
+		warn("[SlashCommandService] Cannot send chat message - messageRemote not initialized")
+	end
+end
 
 --[[
 	Checks if a player has sufficient rank to use slash commands
@@ -156,6 +170,154 @@ local function executeControllerCommand(player: Player, controllerName: string, 
 end
 
 --[[
+	Shows help information for commands
+	Format: /help [targetname]
+]]
+local function showHelp(player: Player, targetName: string?): (boolean, string)
+	if not targetName then
+		-- Show all available commands
+		local helpText = "=== Available Slash Commands ===\n\n"
+
+		-- List user models
+		local userModelNames = {}
+		for name, _ in userModels do
+			table.insert(userModelNames, name)
+		end
+		table.sort(userModelNames)
+
+		if #userModelNames > 0 then
+			helpText ..= "USER MODELS (per-player state):\n"
+			for _, name in userModelNames do
+				helpText ..= `  /{name}\n`
+			end
+			helpText ..= "\n"
+		end
+
+		-- List server models
+		local serverModelNames = {}
+		for name, _ in serverModels do
+			table.insert(serverModelNames, name)
+		end
+		table.sort(serverModelNames)
+
+		if #serverModelNames > 0 then
+			helpText ..= "SERVER MODELS (global state):\n"
+			for _, name in serverModelNames do
+				helpText ..= `  /{name}\n`
+			end
+			helpText ..= "\n"
+		end
+
+		-- List controllers
+		local controllerNames = {}
+		for name, _ in controllers do
+			table.insert(controllerNames, name)
+		end
+		table.sort(controllerNames)
+
+		if #controllerNames > 0 then
+			helpText ..= "CONTROLLERS:\n"
+			for _, name in controllerNames do
+				helpText ..= `  /{name}\n`
+			end
+			helpText ..= "\n"
+		end
+
+		helpText ..= "Usage: /help <command> - Show methods/actions for a command\n"
+		helpText ..= "       /<command> <method> [args...] - Execute a command"
+
+		return true, helpText
+	else
+		-- Show details for specific command
+		local target = targetName:lower()
+
+		-- Check if it's a model (user or server)
+		local modelClass = userModels[target] or serverModels[target]
+		if modelClass then
+			local isUserModel = userModels[target] ~= nil
+			local scope = isUserModel and "USER" or "SERVER"
+
+			-- Get model instance to introspect methods
+			local modelInstance
+			if isUserModel then
+				modelInstance = modelClass.get(tostring(player.UserId))
+			else
+				modelInstance = modelClass.get("SERVER")
+			end
+
+			if not modelInstance then
+				return false, `Could not get instance of {targetName}`
+			end
+
+			-- Discover public methods from the metatable
+			local methods = {}
+			local metatable = getmetatable(modelInstance)
+			if metatable then
+				for key, value in pairs(metatable) do
+					-- Filter out private methods, special metatable keys, static methods, and non-functions
+					if type(value) == "function"
+						and not key:match("^_")
+						and not key:match("^__")
+						and key ~= "new"
+						and key ~= "get"
+						and key ~= "remove" then
+						table.insert(methods, key)
+					end
+				end
+			end
+			table.sort(methods)
+
+			local helpText = `=== /{target} ({scope} MODEL) ===\n\n`
+
+			if #methods > 0 then
+				helpText ..= "Available methods:\n"
+				for _, method in methods do
+					helpText ..= `  /{target} {method} [args...]\n`
+				end
+			else
+				helpText ..= "No public methods available.\n"
+			end
+
+			return true, helpText
+		end
+
+		-- Check if it's a controller
+		local controllerInfo = controllers[target]
+		if controllerInfo then
+			local actions = {}
+
+			-- Try to get available actions from the controller
+			if type(controllerInfo.instance.getAvailableActions) == "function" then
+				local success, result = pcall(function()
+					return controllerInfo.instance:getAvailableActions()
+				end)
+
+				if success and result then
+					actions = result
+				end
+			end
+
+			local helpText = `=== /{target} (CONTROLLER) ===\n\n`
+
+			if #actions > 0 then
+				table.sort(actions)
+				helpText ..= "Available actions:\n"
+				for _, action in actions do
+					helpText ..= `  /{target} {action} [args...]\n`
+				end
+			else
+				helpText ..= "Actions not documented.\n"
+				helpText ..= "See IntentActions module for available actions.\n"
+			end
+
+			return true, helpText
+		end
+
+		return false, `Command '{targetName}' not found`
+	end
+end
+
+--[[
 	Handles command execution from client
 	Format: commandString = "targetname methodname args..."
 ]]
@@ -169,12 +331,29 @@ local function handleCommand(player: Player, commandString: string): ()
 	-- Parse command string
 	local parts = string.split(commandString, " ")
 
-	if #parts < 2 then
+	if #parts < 1 then
 		warn(`[SlashCommand] Invalid command format from {player.Name}: {commandString}`)
 		return
 	end
 
 	local targetName = parts[1]
+
+	-- Handle /help command specially
+	if targetName:lower() == "help" then
+		local helpTarget = parts[2] -- May be nil
+		local success, message = showHelp(player, helpTarget)
+		sendChatMessage(player, message)
+		print(`[SlashCommand] {player.Name} used /help` .. (helpTarget and ` {helpTarget}` or ""))
+		return
+	end
+
+	-- All other commands require at least 2 parts (target + method/action)
+	if #parts < 2 then
+		sendChatMessage(player, "Invalid command format. Usage: /<command> <method> [args...]")
+		warn(`[SlashCommand] Invalid command format from {player.Name}: {commandString}`)
+		return
+	end
+
 	local methodName = parts[2]
 	local argString = string.sub(commandString, #targetName + #methodName + 3) -- +3 for two spaces and 1-index
 	local args = parseArguments(argString)
@@ -190,8 +369,11 @@ local function handleCommand(player: Player, commandString: string): ()
 	end
 
 	-- Send feedback to player
+	sendChatMessage(player, message)
 	if not success then
 		warn(`[SlashCommand] FAILED - {player.Name}: {message}`)
+	else
+		print(`[SlashCommand] SUCCESS - {player.Name}: {message}`)
 	end
 end
 
@@ -235,6 +417,12 @@ end
 function SlashCommandService:createTextChatCommands(): ()
 	local textCommands = TextChatService:WaitForChild("TextChatCommands")
 
+	-- Create /help command
+	local helpCommand = Instance.new("TextChatCommand")
+	helpCommand.Name = "help"
+	helpCommand.PrimaryAlias = "/help"
+	helpCommand.Parent = textCommands
+
 	-- Create a command for each user-scoped model
 	for modelName, _ in userModels do
 		local command = Instance.new("TextChatCommand")
@@ -275,6 +463,11 @@ function SlashCommandService:init(): ()
 	commandRemote = Instance.new("RemoteEvent")
 	commandRemote.Name = "SlashCommand"
 	commandRemote.Parent = eventsFolder
+
+	-- Create RemoteEvent for chat messages
+	messageRemote = Instance.new("RemoteEvent")
+	messageRemote.Name = "SlashCommandMessage"
+	messageRemote.Parent = eventsFolder
 
 	-- Listen for command events
 	commandRemote.OnServerEvent:Connect(function(player: Player, commandString: string)

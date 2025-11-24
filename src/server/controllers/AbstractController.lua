@@ -49,4 +49,9 @@ function AbstractController:dispatchAction(actionsTable: { [string]: (...any) ->
 	actionFunc(...)
 end
 
+-- Override this method in child controllers to enable action discovery via /help
+function AbstractController:getAvailableActions(): { string }
+	return {}
+end
+
 return AbstractController

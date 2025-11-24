@@ -14,10 +14,11 @@ Slash commands provide a quick way for high-rank users (developers, moderators, 
 
 ## Architecture Overview
 
-The slash command system consists of two components:
+The slash command system consists of three components:
 
 - **SlashCommandService** (server): Discovers models and controllers, validates permissions, executes commands
 - **SlashCommandClient** (client): Listens to TextChatService and sends commands to server
+- **ChatMessageClient** (client): Displays command results and help text in the chat window
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -100,6 +101,57 @@ Commands are only available to users who meet these criteria:
 - **User-owned games**: All users can use commands (for testing in Studio)
 
 The group ID is **automatically detected** when the server starts - no configuration needed!
+
+## Discovering Available Commands
+
+### Using /help Command
+
+The `/help` command provides automatic discovery of all available slash commands:
+
+**List all commands:**
+```
+/help
+```
+
+Shows all models (User/Server scoped) and controllers with their command names.
+
+**View specific command details:**
+```
+/help modelname
+/help controllername
+```
+
+Shows all available methods (for models) or actions (for controllers) with usage examples.
+
+**Examples:**
+```
+/help                      → Lists all available commands
+/help inventorymodel       → Shows methods: addGold, spendGold, addTreasure, spendTreasure
+/help bazaarcontroller     → Shows actions: BuyTreasure
+```
+
+The help system automatically:
+- **Discovers model methods** via runtime introspection of the model metatable
+- **Shows controller actions** if the controller implements `getAvailableActions()` method
+- **Filters out** private methods (starting with `_`) and internal implementation details
+- **Displays in chat** so all players with permission can see the information
+
+### Making Controllers Discoverable
+
+To enable `/help` discovery for controllers, add a `getAvailableActions()` method:
+
+```lua
+-- In your controller (e.g., BazaarController.lua)
+function BazaarController:getAvailableActions(): { string }
+    local actions = {}
+    for action, _ in pairs(ACTIONS) do
+        table.insert(actions, action)
+    end
+    return actions
+end
+```
+
+This is optional but recommended for better developer experience.
 
 ## Available Commands
 
@@ -248,9 +300,40 @@ This works automatically across all your games - no hardcoding needed!
 
 ## Debugging
 
+### Command Feedback
+
+All command results are displayed directly in the **chat window**, making it easy to see what happened:
+
+**Successful commands:**
+```
+Executed InventoryModel:addGold
+Executed BazaarController:BuyTreasure
+```
+
+**Error messages:**
+```
+Model 'wrongname' not found
+Method 'wrongmethod' not found in InventoryModel
+Invalid command format. Usage: /<command> <method> [args...]
+```
+
+**Help output:**
+```
+=== Available Slash Commands ===
+
+USER MODELS (per-player state):
+  /inventorymodel
+
+CONTROLLERS:
+  /bazaarcontroller
+  /shrinecontroller
+
+Usage: /help <command> - Show methods/actions for a command
+```
+
 ### Console Logging
 
-The slash command system includes comprehensive logging:
+The slash command system also includes server-side logging for monitoring:
 
 **Client Console:**
 ```
@@ -258,16 +341,14 @@ The slash command system includes comprehensive logging:
 [SlashCommandClient] Registering listener for command: /inventorymodel
 [SlashCommandClient] Command triggered: /inventorymodel with text: "/inventorymodel addGold 100"
 [SlashCommandClient] Sending to server: "inventorymodel addGold 100"
+[ChatMessageClient] initialized
 ```
 
 **Server Console:**
 ```
 [SlashCommandService] Game owned by group 12345678. Rank 200+ required.
-[SlashCommand] Received command from PlayerName: "inventorymodel addGold 100"
-[SlashCommand] Permission check passed for PlayerName
-[SlashCommand] Parsed 3 parts from command
-[SlashCommand] Target: inventorymodel, Method: addGold, Args: 1
 [SlashCommand] SUCCESS - PlayerName: Executed InventoryModel:addGold
+[SlashCommand] PlayerName used /help inventorymodel
 ```
 
 ### Common Issues
@@ -301,10 +382,14 @@ src/
 │   │   ├── server/         ← Server-scoped models (commands operate on server data)
 │   │   │   └── ShrineModel.lua
 │   │   └── ModelRunner.server.lua  ← Registers models with SlashCommandService
-│   └── services/
-│       └── SlashCommandService.lua  ← Server-side command handler
+│   ├── services/
+│   │   └── SlashCommandService.lua  ← Server-side command handler & help system
+│   └── controllers/
+│       ├── AbstractController.lua   ← Base class with getAvailableActions()
+│       └── BazaarController.lua     ← Example with action discovery
 └── client/
-    └── SlashCommandClient.client.lua  ← Client-side command listener
+    ├── SlashCommandClient.client.lua  ← Client-side command listener
+    └── ChatMessageClient.client.lua   ← Displays command feedback in chat
 ```
 
 ## Summary

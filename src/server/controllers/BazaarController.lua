@@ -34,6 +34,15 @@ function BazaarController:executeAction(player: Player, action: IntentActions.Ba
 	self:dispatchAction(ACTIONS, action, player, inventory, player)
 end
 
+-- Expose available actions for /help command discovery
+function BazaarController:getAvailableActions(): { string }
+	local actions = {}
+	for action, _ in pairs(ACTIONS) do
+		table.insert(actions, action)
+	end
+	return actions
+end
+
 function BazaarController.new(): BazaarController
 	local self = AbstractController.new("BazaarController") :: any
 	setmetatable(self, BazaarController)

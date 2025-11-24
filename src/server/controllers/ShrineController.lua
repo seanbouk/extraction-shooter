@@ -29,16 +29,21 @@ local ACTIONS = {
 	[IntentActions.Shrine.Donate] = donate,
 }
 
+-- Public method for slash commands to call directly
+function ShrineController:executeAction(player: Player, action: IntentActions.ShrineAction)
+	-- Get models
+	local inventory = InventoryModel.get(tostring(player.UserId))
+	local shrine = ShrineModel.get("SERVER") -- Server-scoped model
+
+	self:dispatchAction(ACTIONS, action, player, inventory, shrine, player)
+end
+
 function ShrineController.new(): ShrineController
 	local self = AbstractController.new("ShrineController") :: any
 	setmetatable(self, ShrineController)
 
 	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.ShrineAction)
-		-- Get models
-		local inventory = InventoryModel.get(tostring(player.UserId))
-		local shrine = ShrineModel.get("SERVER") -- Server-scoped model
-
-		self:dispatchAction(ACTIONS, action, player, inventory, shrine, player)
+		self:executeAction(player, action)
 	end)
 
 	return self :: ShrineController

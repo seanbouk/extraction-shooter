@@ -3,31 +3,32 @@
 --[[
 	SlashCommandService
 
-	Automatically discovers and registers slash commands from models.
+	Automatically discovers and registers slash commands from models and controllers.
 	Uses pure convention-based approach:
 	- /modelname methodname args... → Executes model method
+	- /controllername actionname args... → Fires controller RemoteEvent
 
 	Requirements:
 	- User must have rank 200+ to use commands
 	- Commands are auto-discovered at server startup
-	- Zero configuration needed in existing models
-
-	Note: Controller support is commented out pending controller refactoring
-	to expose ACTIONS tables and standardize handler signatures.
+	- Zero configuration needed in existing models/controllers
 ]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextChatService = game:GetService("TextChatService")
 
+local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+
 local SlashCommandService = {}
 
 -- Minimum rank required to use slash commands
 local MIN_RANK = 200
 
--- Registered models
+-- Registered models and controllers
 local userModels: { [string]: any } = {}
 local serverModels: { [string]: any } = {}
+local controllers: { [string]: { instance: any, remoteEvent: RemoteEvent } } = {}
 
 -- RemoteEvent for command execution
 local commandRemote: RemoteEvent = nil
@@ -131,6 +132,30 @@ local function executeModelCommand(player: Player, modelName: string, methodName
 end
 
 --[[
+	Executes a controller command
+	Format: /controllername actionname args...
+]]
+local function executeControllerCommand(player: Player, controllerName: string, actionName: string, args: { any }): (boolean, string)
+	local controllerInfo = controllers[controllerName:lower()]
+
+	if not controllerInfo then
+		return false, `Controller '{controllerName}' not found`
+	end
+
+	-- Call the controller's executeAction method directly
+	-- Controllers expose this method for slash command execution
+	local success, err = pcall(function()
+		controllerInfo.instance:executeAction(player, actionName, table.unpack(args))
+	end)
+
+	if not success then
+		return false, `Error executing controller command: {err}`
+	end
+
+	return true, `Executed {controllerName}:{actionName}`
+end
+
+--[[
 	Handles command execution from client
 	Format: commandString = "targetname methodname args..."
 ]]
@@ -161,8 +186,15 @@ local function handleCommand(player: Player, commandString: string): ()
 
 	print(`[SlashCommand] Target: {targetName}, Method: {methodName}, Args: {#args}`)
 
-	-- Execute model command
-	local success, message = executeModelCommand(player, targetName, methodName, args)
+	-- Route to controller or model based on name
+	local success, message
+	if targetName:lower():match("controller$") then
+		-- Controller command
+		success, message = executeControllerCommand(player, targetName, methodName, args)
+	else
+		-- Model command
+		success, message = executeModelCommand(player, targetName, methodName, args)
+	end
 
 	-- Send feedback to player
 	if success then
@@ -195,8 +227,28 @@ function SlashCommandService:registerModels(modelList: { { class: any, name: str
 end
 
 --[[
+	Registers all controllers discovered by ControllerRunner
+]]
+function SlashCommandService:registerControllers(controllerList: { { name: string, instance: any } }): ()
+	for _, controllerInfo in controllerList do
+		local name = controllerInfo.name
+		local instance = controllerInfo.instance
+
+		-- Store controller instance and its RemoteEvent
+		controllers[name:lower()] = {
+			instance = instance,
+			remoteEvent = instance.remoteEvent,
+		}
+
+		print(`[SlashCommandService] Registered controller: {name}`)
+	end
+
+	print(`[SlashCommandService] Total controllers registered: {#controllerList}`)
+end
+
+--[[
 	Creates TextChatCommands for autocomplete and help
-	Called after models are registered
+	Called after models and controllers are registered
 ]]
 function SlashCommandService:createTextChatCommands(): ()
 	local textCommands = TextChatService:WaitForChild("TextChatCommands")
@@ -214,6 +266,14 @@ function SlashCommandService:createTextChatCommands(): ()
 		local command = Instance.new("TextChatCommand")
 		command.Name = `servermodel_{modelName}`
 		command.PrimaryAlias = `/{modelName:lower()}`
+		command.Parent = textCommands
+	end
+
+	-- Create a command for each controller
+	for controllerName, _ in controllers do
+		local command = Instance.new("TextChatCommand")
+		command.Name = `controller_{controllerName}`
+		command.PrimaryAlias = `/{controllerName:lower()}`
 		command.Parent = textCommands
 	end
 

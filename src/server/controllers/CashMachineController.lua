@@ -27,23 +27,28 @@ local ACTIONS = {
 	[IntentActions.CashMachine.Deposit] = deposit,
 }
 
+-- Public method for slash commands to call directly
+function CashMachineController:executeAction(player: Player, action: IntentActions.CashMachineAction, amount: number)
+	-- Validate amount
+	if amount <= 0 then
+		warn("Invalid amount received from " .. player.Name .. ": " .. tostring(amount))
+		return
+	end
+
+	-- Get model
+	local inventory = InventoryModel.get(tostring(player.UserId))
+
+	-- Dispatch action
+	self:dispatchAction(ACTIONS, action, player, inventory, amount, player)
+end
+
 function CashMachineController.new(): CashMachineController
 	local self = AbstractController.new("CashMachineController") :: any
 	setmetatable(self, CashMachineController)
 
 	-- Set up event listener
 	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.CashMachineAction, amount: number)
-		-- Validate amount
-		if amount <= 0 then
-			warn("Invalid amount received from " .. player.Name .. ": " .. tostring(amount))
-			return
-		end
-
-		-- Get model
-		local inventory = InventoryModel.get(tostring(player.UserId))
-
-		-- Dispatch action
-		self:dispatchAction(ACTIONS, action, player, inventory, amount, player)
+		self:executeAction(player, action, amount)
 	end)
 
 	return self :: CashMachineController

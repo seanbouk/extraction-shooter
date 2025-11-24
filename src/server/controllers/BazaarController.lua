@@ -29,14 +29,19 @@ local ACTIONS = {
 	[IntentActions.Bazaar.BuyTreasure] = buyTreasure,
 }
 
+-- Public method for slash commands to call directly
+function BazaarController:executeAction(player: Player, action: IntentActions.BazaarAction)
+	local inventory = InventoryModel.get(tostring(player.UserId))
+	self:dispatchAction(ACTIONS, action, player, inventory, player)
+end
+
 function BazaarController.new(): BazaarController
 	local self = AbstractController.new("BazaarController") :: any
 	setmetatable(self, BazaarController)
 
 	-- Set up event listener
 	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.BazaarAction)
-		local inventory = InventoryModel.get(tostring(player.UserId))
-		self:dispatchAction(ACTIONS, action, player, inventory, player)
+		self:executeAction(player, action)
 	end)
 
 	return self :: BazaarController

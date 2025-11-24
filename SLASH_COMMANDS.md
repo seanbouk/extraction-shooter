@@ -7,7 +7,7 @@ This guide explains the slash command system for admin/debug functionality in-ga
 Slash commands provide a quick way for high-rank users (developers, moderators, admins) to execute model methods and controller actions directly from the chat window for testing and debugging purposes.
 
 **Key Features:**
-- **Convention-based**: Any model method automatically becomes a slash command - zero configuration needed
+- **Convention-based**: Any model method or controller action automatically becomes a slash command - zero configuration needed
 - **Permission-based**: Only users with rank 200+ in the owning group can use commands
 - **Auto-discovered**: Commands are automatically registered when the server starts
 - **Type-safe**: Arguments are automatically parsed to numbers, booleans, or strings
@@ -16,13 +16,13 @@ Slash commands provide a quick way for high-rank users (developers, moderators, 
 
 The slash command system consists of two components:
 
-- **SlashCommandService** (server): Discovers models, validates permissions, executes commands
+- **SlashCommandService** (server): Discovers models and controllers, validates permissions, executes commands
 - **SlashCommandClient** (client): Listens to TextChatService and sends commands to server
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │                     USER TYPES SLASH COMMAND                         │
-│                        /inventorymodel addGold 100                   │
+│             /inventorymodel addGold 100  OR  /bazaarcontroller BuyTreasure │
 └────────────────────────────┬────────────────────────────────────────┘
                              │
                              ▼
@@ -43,14 +43,23 @@ The slash command system consists of two components:
                 │                           │
                 ▼                           ▼
        ┌────────────────┐         ┌────────────────┐
-       │ Model Method   │         │ Controller     │  (Future)
-       │ Execution      │         │ Action         │
-       └────────┬───────┘         └────────────────┘
-                │
-                ▼
-       ┌────────────────┐
-       │ State Broadcast│  ← Normal MVC flow
-       └────────────────┘
+       │ Model Method   │         │ Controller     │
+       │ Execution      │         │ RemoteEvent    │
+       └────────┬───────┘         └────────┬───────┘
+                │                          │
+                │                          │ Fires existing RemoteEvent
+                │                          │
+                ▼                          ▼
+       ┌────────────────┐         ┌────────────────┐
+       │ State Broadcast│         │ Controller     │
+       │                │         │ OnServerEvent  │ ← Uses existing logic
+       └────────────────┘         └────────┬───────┘
+                                           │
+                                           ▼
+                                  ┌────────────────┐
+                                  │ Model Update & │
+                                  │ State Broadcast│
+                                  └────────────────┘
 ```
 
 ## Using Slash Commands
@@ -62,12 +71,25 @@ The slash command system consists of two components:
 /modelname methodname arg1 arg2 ...
 ```
 
-**Examples:**
+**Controller Commands:**
+```
+/controllername actionname arg1 arg2 ...
+```
+
+**Model Examples:**
 ```
 /inventorymodel addGold 100
 /inventorymodel addTreasure 5
 /inventorymodel spendGold 50
 /shrinemodel donate 123456789 10
+```
+
+**Controller Examples:**
+```
+/bazaarcontroller BuyTreasure
+/cashmachinecontroller Withdraw 100
+/cashmachinecontroller Deposit 50
+/shrinecontroller Donate
 ```
 
 ### Permission Requirements
@@ -81,7 +103,7 @@ The group ID is **automatically detected** when the server starts - no configura
 
 ## Available Commands
 
-Commands are automatically generated for all models. The available commands depend on what models you've created:
+Commands are automatically generated for all models and controllers. The available commands depend on what you've created:
 
 ### User-Scoped Models
 
@@ -100,6 +122,20 @@ Server-scoped models (in `src/server/models/server/`) operate on shared server s
 **Example - ShrineModel:**
 - `/shrinemodel donate 123456789 100` - Donate 100 treasure to shrine with player ID
 
+### Controller Actions
+
+Controller commands (in `src/server/controllers/`) trigger controller actions with full validation.
+
+**Example - BazaarController:**
+- `/bazaarcontroller BuyTreasure` - Purchase treasure (costs 200 gold, adds 1 treasure)
+
+**Example - CashMachineController:**
+- `/cashmachinecontroller Withdraw 100` - Withdraw 100 gold (adds to inventory)
+- `/cashmachinecontroller Deposit 50` - Deposit 50 gold (removes from inventory)
+
+**Example - ShrineController:**
+- `/shrinecontroller Donate` - Donate 1 treasure to the shrine
+
 ## How It Works
 
 ### Automatic Discovery
@@ -107,8 +143,9 @@ Server-scoped models (in `src/server/models/server/`) operate on shared server s
 When the server starts:
 
 1. **ModelRunner** discovers all models in `src/server/models/user/` and `src/server/models/server/`
-2. **SlashCommandService** registers each discovered model
-3. **TextChatCommands** are created for autocomplete in chat
+2. **ControllerRunner** discovers all controllers in `src/server/controllers/`
+3. **SlashCommandService** registers each discovered model and controller
+4. **TextChatCommands** are created for autocomplete in chat
 
 When the client starts:
 
@@ -118,7 +155,7 @@ When the client starts:
 
 ### Command Execution Flow
 
-When you type a slash command:
+**For Model Commands:**
 
 1. **Client**: TextChatService detects the command
 2. **Client**: SlashCommandClient sends command string to server
@@ -128,6 +165,20 @@ When you type a slash command:
 6. **Server**: Calls the method with parsed arguments
 7. **Model**: Method executes, updates state, calls `fire()` to broadcast
 8. **Client**: Your views update automatically via normal MVC state flow
+
+**For Controller Commands:**
+
+1. **Client**: TextChatService detects the command
+2. **Client**: SlashCommandClient sends command string to server
+3. **Server**: SlashCommandService validates your rank/permissions
+4. **Server**: Parses command into controller name, action name, and arguments
+5. **Server**: Fires the controller's RemoteEvent: `remoteEvent:Fire(player, action, args...)`
+6. **Controller**: OnServerEvent handler receives the event (same as if client sent it)
+7. **Controller**: Validates request, gets models, executes action handler
+8. **Model**: Updates state, calls `fire()` to broadcast
+9. **Client**: Your views update automatically via normal MVC state flow
+
+**Key Difference:** Controller commands reuse the controller's existing RemoteEvent and validation logic, ensuring the same behavior as normal gameplay actions.
 
 ### Argument Parsing
 
@@ -256,26 +307,15 @@ src/
     └── SlashCommandClient.client.lua  ← Client-side command listener
 ```
 
-## Future Enhancements
-
-**Controller Commands** (not yet implemented):
-
-Controller commands would allow executing controller actions directly:
-```
-/bazaarcontroller BuyTreasure
-/cashmachinecontroller Withdraw 100
-```
-
-This requires controllers to expose their ACTIONS tables and would follow the same auto-discovery pattern.
-
 ## Summary
 
 Slash commands provide a **zero-configuration admin tool system**:
 
-1. ✅ **No setup required** - Just create models normally
-2. ✅ **Automatic discovery** - Commands appear when models are registered
+1. ✅ **No setup required** - Just create models and controllers normally
+2. ✅ **Automatic discovery** - Commands appear when models/controllers are registered
 3. ✅ **Permission-controlled** - Only high-rank users can execute
 4. ✅ **Type-safe** - Arguments auto-parsed to correct types
 5. ✅ **MVC-compliant** - Uses normal state broadcast flow
+6. ✅ **Controller support** - Reuses existing validation and RemoteEvents
 
 Use them for testing, debugging, and admin actions - but remember that normal gameplay should use the full MVC pattern (Views → Controllers → Models) for proper validation and security!

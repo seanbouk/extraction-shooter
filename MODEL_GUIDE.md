@@ -59,6 +59,45 @@ All models inherit from `AbstractModel.lua` which provides:
 
 ### Step 2: Determine Model Scope
 
+#### Decision Tree: Choosing the Right Model Scope
+
+Use this decision tree to determine which scope your model needs:
+
+**Question 1: Does each player have their own separate copy of this data?**
+- **Yes** → User-scoped (continue to Question 2)
+- **No** → Go to Question 3
+
+**Question 2: Should this data persist across server restarts and player sessions?**
+- **Yes** → **User-scoped** (place in `models/user/`)
+- **No** → User-scoped still appropriate if data is per-player but ephemeral
+
+**Question 3: Is this data shared across all players in the server?**
+- **Yes** → **Server-scoped** (place in `models/server/`)
+- **No** → Reconsider Question 1 - data might be per-player after all
+
+**Examples:**
+
+✅ **User-scoped** (per-player, persistent):
+- Player's inventory (gold, items, weapons)
+- Quest progress and achievements
+- Player settings and preferences
+- Character stats and levels
+- Owned cosmetics
+
+✅ **Server-scoped** (shared, ephemeral):
+- Match timer for all players
+- Shared shrine donations (ShrineModel example)
+- Current round number
+- Server-wide events
+- Leaderboard for current session
+
+❌ **Common mistakes:**
+- Making inventory Server-scoped (each player needs their own!)
+- Making match timer User-scoped (all players should see the same timer!)
+- Expecting Server-scoped data to persist (it won't - that's by design!)
+
+#### Scope Selection Guidelines
+
 Before creating your model, decide which scope it needs:
 
 - **User-Scoped**: Place in `src/server/models/user/YourModel.lua` and pass `"User"` to AbstractModel
@@ -557,6 +596,208 @@ end)
 ```
 
 **Important**: You don't need to manually add your model to ModelRunner. Simply create it in the `models/user/` or `models/server/` folder and it will be automatically discovered and managed.
+
+## Working with StateEvents
+
+When you create a new model that broadcasts state to clients, you should add it to the `StateEvents` module for type-safe state synchronization.
+
+### What are StateEvents?
+
+StateEvents is a centralized module (`src/shared/StateEvents.lua`) that provides:
+- **Event name constants** - Single source of truth for RemoteEvent names
+- **Exported data types** - Type-safe state data structures for views
+- **Complete MVC type safety** - From model through view
+
+### When to Add a New State Event
+
+Add a new state event to StateEvents when:
+- ✅ You create a new model that broadcasts state to clients
+- ✅ Views need to observe changes in a model's state
+- ✅ You want type-safe state synchronization between server and client
+
+### When to Reuse an Existing State Event
+
+Reuse an existing event when:
+- ✅ Multiple views observe the same model (e.g., StatusBarView and InventoryUIView both use InventoryStateChanged)
+- ✅ Data structure is the same, just different UI presentation
+
+### Step-by-Step: Adding a New State Event
+
+**1. Open `src/shared/StateEvents.lua`**
+
+**2. Add event name constant:**
+
+Match your model name exactly (AbstractModel uses this for auto-creation):
+
+```lua
+local StateEvents = {
+    -- ... existing events ...
+    YourModel = {
+        EventName = "YourModelStateChanged",
+    },
+}
+```
+
+**Naming convention:** `[ModelName]StateChanged` (e.g., "InventoryStateChanged", "ShrineStateChanged")
+
+**3. Add exported data type:**
+
+Match your model's properties that views need to observe:
+
+```lua
+-- ... existing type exports ...
+export type YourModelData = {
+    ownerId: string,  -- ALWAYS include (required for filtering)
+    property1: type,
+    property2: type,
+}
+```
+
+**4. Return the module:**
+
+```lua
+return StateEvents
+```
+
+### State Data Type Guidelines
+
+**Always include:**
+- `ownerId: string` - Required for filtering, even if not always used by views
+
+**Include properties that:**
+- ✅ Views need to display (e.g., gold amount, treasure count)
+- ✅ Change over time (e.g., health, score, progress)
+- ✅ Are broadcast by the model (via `self:fire()`)
+
+**Don't include:**
+- ❌ Internal model state that clients never see
+- ❌ Computed values that views calculate themselves (unless expensive)
+- ❌ Sensitive data that shouldn't be visible to clients
+
+### Example: InventoryModel State Event
+
+**In StateEvents.lua:**
+
+```lua
+Inventory = {
+    EventName = "InventoryStateChanged",
+},
+
+export type InventoryData = {
+    ownerId: string,
+    gold: number,
+    treasure: number,
+}
+```
+
+**How it's used:**
+
+1. **AbstractModel auto-creates RemoteEvent:**
+   - `AbstractModel.new("InventoryModel", ...)` creates RemoteEvent "InventoryStateChanged"
+   - Event is placed in ReplicatedStorage → Events
+
+2. **Model broadcasts state:**
+   ```lua
+   function InventoryModel:addGold(amount: number): ()
+       self.gold += amount
+       self:fire("owner")  -- Broadcasts InventoryData to owner
+   end
+   ```
+
+3. **Views observe state with type safety:**
+   ```lua
+   local StateEvents = require(ReplicatedStorage.Shared.StateEvents)
+   local inventoryStateChanged = eventsFolder:WaitForChild(StateEvents.Inventory.EventName)
+
+   inventoryStateChanged.OnClientEvent:Connect(function(data: StateEvents.InventoryData)
+       -- Type-safe! Luau knows: data.gold (number), data.treasure (number)
+       updateLabels(data.gold, data.treasure)
+   end)
+   ```
+
+### Example: ShrineModel State Event (Server-Scoped)
+
+**In StateEvents.lua:**
+
+```lua
+Shrine = {
+    EventName = "ShrineStateChanged",
+},
+
+export type ShrineData = {
+    ownerId: string,  -- For server-scoped, use "SERVER"
+    treasure: number,
+    userId: string,  -- Last donor
+}
+```
+
+**Key difference for Server-scoped models:**
+- `ownerId` is always "SERVER" (not a player UserId)
+- Typically broadcast with `fire("all")` since data is shared
+- All clients receive the same state
+
+### Common Patterns
+
+#### User-Scoped Model (Private Data)
+
+```lua
+-- StateEvents.lua
+PlayerQuest = {
+    EventName = "PlayerQuestStateChanged",
+},
+
+export type PlayerQuestData = {
+    ownerId: string,
+    questId: string,
+    progress: number,
+    isComplete: boolean,
+}
+
+-- Model broadcasts with fire("owner") - only that player sees it
+```
+
+#### Server-Scoped Model (Public Data)
+
+```lua
+-- StateEvents.lua
+MatchTimer = {
+    EventName = "MatchTimerStateChanged",
+},
+
+export type MatchTimerData = {
+    ownerId: string,  -- "SERVER"
+    timeRemaining: number,
+    matchState: string,
+}
+
+-- Model broadcasts with fire("all") - all players see it
+```
+
+### Troubleshooting
+
+**Problem:** Views not receiving state updates
+- Check: Does event name match model name? (`InventoryModel` → `"InventoryStateChanged"`)
+- Check: Is the type exported from StateEvents.lua?
+- Check: Are you using `StateEvents.ModelName.EventName` in view?
+
+**Problem:** Type errors in view
+- Check: Did you export the data type? (`export type ModelData = {...}`)
+- Check: Are you using the correct type annotation? (`data: StateEvents.ModelData`)
+- Check: Do the properties match your model's actual properties?
+
+**Problem:** Wrong players receiving state
+- Check: Are you using correct scope in `fire()`? ("owner" vs "all")
+- Check: Is ownerId filtering applied correctly in view? (Usually not needed!)
+- Check: For user-scoped models, fire("owner") already filters to that player
+
+### Benefits of Using StateEvents
+
+✅ **Type Safety** - Catch typos and type mismatches at compile-time
+✅ **Single Source of Truth** - Event names defined once, used everywhere
+✅ **IDE Autocomplete** - Type `StateEvents.` and see all available events
+✅ **Refactoring Safety** - Change once, errors guide you to all usages
+✅ **Self-Documenting** - Types show what data models broadcast
+✅ **Complete MVC Type Safety** - From model through view with zero runtime overhead
 
 ## Next Steps
 

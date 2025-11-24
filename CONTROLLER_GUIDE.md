@@ -308,6 +308,50 @@ end
 
 ## Common Patterns
 
+### Decision Tree: Choosing Controller Action Pattern
+
+Use this decision tree to determine which pattern to use for your controller:
+
+**Question: How many distinct actions will this controller handle?**
+
+- **1 action** → **Single Action Controller** (no action parameter needed)
+- **2-3 actions** → **Either pattern works** (if/else is simpler for small numbers)
+- **4+ actions** → **Lookup Table pattern** (more maintainable, easier to extend)
+
+**Benefits of each approach:**
+
+✅ **Single Action Controller** (no action parameter):
+- Simplest pattern for controllers with one responsibility
+- No action validation needed
+- Clear and straightforward
+
+✅ **if/else pattern** (2-3 actions):
+- Simple to understand and write
+- Good for small number of related actions
+- Linear control flow is easy to follow
+
+✅ **Lookup Table pattern** (4+ actions, RECOMMENDED):
+- More scalable - easy to add new actions
+- Better separation of concerns (functions are modular)
+- Consistent organization across controllers
+- AbstractController's `dispatchAction` handles validation
+- Easier to test individual actions
+- Better for code reviews
+
+**Examples:**
+
+**Single action:**
+- ShopController → handles "PurchaseItem" only
+- DonateController → handles "Donate" only
+
+**2-3 actions (either pattern works):**
+- EquipmentController → "Equip", "Unequip" (2 actions)
+- TradeController → "SendOffer", "Accept", "Decline" (3 actions)
+
+**4+ actions (use lookup table):**
+- InventoryController → "Equip", "Unequip", "Drop", "Use", "Stack", "Split" (6 actions)
+- SocialController → "SendFriendRequest", "AcceptRequest", "Block", "Unblock", "Mute" (5 actions)
+
 ### Single Action Controller
 
 For controllers with one primary action:
@@ -574,6 +618,280 @@ export type ShrineAction = "Donate"
 - **Easy refactoring** - change in one place, affects both views and controllers
 - **Self-documenting code** - developers can see valid actions from the type
 - **No more magic strings** scattered across the codebase
+
+## Working with IntentActions
+
+When creating a new controller, you need to add action constants to IntentActions for type-safe communication between views and controllers.
+
+### What are IntentActions?
+
+IntentActions is a centralized module (`src/shared/IntentActions.lua`) that provides:
+- **Action constants** - Single source of truth for all user intent strings
+- **Exported action types** - Type-safe action parameters for controllers
+- **Complete MVC type safety** - From view through controller
+
+### When to Add New Actions
+
+Add new actions to IntentActions when:
+- ✅ You create a new controller that handles user intents
+- ✅ You're adding new functionality to an existing controller
+- ✅ A view needs to send a new type of user intent to the server
+
+### Step-by-Step: Adding New Actions
+
+**1. Open `src/shared/IntentActions.lua`**
+
+**2. Add action constants:**
+
+Group related actions by feature:
+
+```lua
+local IntentActions = {
+    -- ... existing actions ...
+    YourFeature = {
+        ActionName = "ActionName",
+        AnotherAction = "AnotherAction",
+    },
+}
+```
+
+**3. Add exported type:**
+
+Create a union type of all action strings:
+
+```lua
+-- ... existing type exports ...
+export type YourFeatureAction = "ActionName" | "AnotherAction"
+```
+
+**4. Return the module:**
+
+```lua
+return IntentActions
+```
+
+### Action Naming Conventions
+
+Actions should describe **what the user wants to do** (their intent), not what will happen (commands).
+
+✅ **Good action names** (intent-focused, verb-based):
+- `PurchaseWeapon` - User wants to buy a weapon
+- `EquipItem` - User wants to equip an item
+- `Donate` - User wants to donate
+- `BuyTreasure` - User wants to purchase treasure
+- `WithdrawGold` - User wants to withdraw from bank
+- `AcceptQuest` - User wants to accept a quest
+
+❌ **Bad action names** (command-like or too vague):
+- `SetInventory` - Sounds like a command, not an intent
+- `Update` - Too vague, update what?
+- `Click` - Describes UI interaction, not intent
+- `Execute` - Generic and unclear
+- `Process` - Implementation detail, not user intent
+- `Handle` - Developer jargon, not user-facing
+
+### Example: Adding CashMachine Actions
+
+**In IntentActions.lua:**
+
+```lua
+local IntentActions = {
+    CashMachine = {
+        Withdraw = "Withdraw",
+        Deposit = "Deposit",
+    },
+    -- ... other features ...
+}
+
+export type CashMachineAction = "Withdraw" | "Deposit"
+
+return IntentActions
+```
+
+**In Controller:**
+
+```lua
+local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
+
+local function withdraw(inventory: any, amount: number, player: Player)
+    inventory:addGold(amount)
+end
+
+local function deposit(inventory: any, amount: number, player: Player)
+    inventory:addGold(-amount)
+end
+
+-- Map IntentActions constants to handler functions
+local ACTIONS = {
+    [IntentActions.CashMachine.Withdraw] = withdraw,
+    [IntentActions.CashMachine.Deposit] = deposit,
+}
+
+-- Use typed action parameter
+self.remoteEvent.OnServerEvent:Connect(function(
+    player: Player,
+    action: IntentActions.CashMachineAction,  -- Type-safe!
+    amount: number
+)
+    -- Validate and dispatch
+    self:dispatchAction(ACTIONS, action, player, inventory, amount, player)
+end)
+```
+
+**In View:**
+
+```lua
+local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+
+-- Type-safe constant usage
+remoteEvent:FireServer(IntentActions.CashMachine.Withdraw, 100)
+```
+
+### Multiple Actions in One Feature
+
+When you have multiple related actions, group them under one feature:
+
+```lua
+-- IntentActions.lua
+Shop = {
+    BuyWeapon = "BuyWeapon",
+    SellWeapon = "SellWeapon",
+    PreviewWeapon = "PreviewWeapon",
+    CompareWeapons = "CompareWeapons",
+},
+
+export type ShopAction = "BuyWeapon" | "SellWeapon" | "PreviewWeapon" | "CompareWeapons"
+```
+
+**Controller uses lookup table pattern:**
+
+```lua
+local function buyWeapon(player: Player, shop: any, weaponId: string)
+    -- implementation
+end
+
+local function sellWeapon(player: Player, shop: any, weaponId: string)
+    -- implementation
+end
+
+local function previewWeapon(player: Player, shop: any, weaponId: string)
+    -- implementation
+end
+
+local function compareWeapons(player: Player, shop: any, weaponId1: string, weaponId2: string)
+    -- implementation
+end
+
+local ACTIONS = {
+    [IntentActions.Shop.BuyWeapon] = buyWeapon,
+    [IntentActions.Shop.SellWeapon] = sellWeapon,
+    [IntentActions.Shop.PreviewWeapon] = previewWeapon,
+    [IntentActions.Shop.CompareWeapons] = compareWeapons,
+}
+```
+
+### Single Action Feature
+
+For controllers with only one action, you still benefit from the pattern:
+
+```lua
+-- IntentActions.lua
+Shrine = {
+    Donate = "Donate",
+},
+
+export type ShrineAction = "Donate"
+```
+
+This provides:
+- Consistent pattern across all controllers
+- Easy to add more actions later
+- Type safety even for single actions
+- Self-documenting code
+
+### Updating Existing Actions
+
+**Adding a new action to existing feature:**
+
+```lua
+-- Before
+CashMachine = {
+    Withdraw = "Withdraw",
+    Deposit = "Deposit",
+},
+
+export type CashMachineAction = "Withdraw" | "Deposit"
+
+-- After (adding Transfer)
+CashMachine = {
+    Withdraw = "Withdraw",
+    Deposit = "Deposit",
+    Transfer = "Transfer",  -- New action
+},
+
+export type CashMachineAction = "Withdraw" | "Deposit" | "Transfer"  -- Update type
+```
+
+**Then update controller:**
+
+1. Add handler function
+2. Add to ACTIONS table
+3. Update OnServerEvent type annotation (already covered by union type)
+
+### Type Safety Benefits
+
+**Compile-time checking:**
+```lua
+-- ✓ Correct - Luau knows this is valid
+remoteEvent:FireServer(IntentActions.CashMachine.Withdraw, 100)
+
+-- ✗ Type error - "Withdraww" is not a valid action (typo caught!)
+remoteEvent:FireServer(IntentActions.CashMachine.Withdraww, 100)
+
+-- ✗ Type error - "Hack" is not a CashMachineAction
+local action: IntentActions.CashMachineAction = "Hack"
+```
+
+**IDE autocomplete:**
+```lua
+-- Type IntentActions.CashMachine. and see:
+-- - Withdraw
+-- - Deposit
+```
+
+**Refactoring safety:**
+```lua
+-- Change "Withdraw" to "WithdrawFunds" in IntentActions
+-- Luau will show type errors at every usage site, guiding you to update them all
+```
+
+### Troubleshooting
+
+**Problem:** Type errors in controller OnServerEvent
+- Check: Did you export the type from IntentActions?
+- Fix: Add `export type YourFeatureAction = "Action1" | "Action2"`
+
+**Problem:** Action not in ACTIONS table at runtime
+- Check: Did you map the IntentActions constant to a function?
+- Fix: `[IntentActions.Feature.Action] = handlerFunction`
+
+**Problem:** View sending wrong action string
+- Check: Are you using IntentActions constants, not magic strings?
+- Fix: Use `IntentActions.Feature.Action` instead of `"Action"`
+
+**Problem:** Adding action but IDE doesn't show autocomplete
+- Check: Did you add it to both the constant table AND the exported type?
+- Fix: Update both `YourFeature = { NewAction = "NewAction" }` AND `export type YourFeatureAction = "..." | "NewAction"`
+
+### Benefits Summary
+
+✅ **Type Safety** - Catch typos and type mismatches at compile-time
+✅ **Single Source of Truth** - Action strings defined once, used everywhere
+✅ **IDE Autocomplete** - Type `IntentActions.` and see all features and actions
+✅ **Refactoring Safety** - Change once, errors guide you to all usages
+✅ **Self-Documenting** - Types show valid actions at a glance
+✅ **Complete MVC Type Safety** - From view through controller with zero runtime overhead
+✅ **Consistent Pattern** - All controllers use the same approach
 
 ### Understanding Type Safety: Compile-Time vs Runtime
 

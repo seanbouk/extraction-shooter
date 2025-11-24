@@ -38,6 +38,81 @@ Views typically follow one of three patterns:
 - Filter updates by ownerId **only when receiving "all" scope broadcasts** (server already filters "owner" scope)
 - Example: Health bars, inventory displays, status indicators
 
+#### Decision Tree: Choosing the Right View Pattern
+
+Use this decision tree to determine which pattern your view needs:
+
+**Question 1: Does this view need to communicate with the server?**
+- **No** → **Pattern A** (Pure Client-Side Feedback)
+  - Use for: Particle effects, sound effects, hover animations, camera effects
+  - Benefits: Instant response, no network latency, simple implementation
+- **Yes** → Continue to Question 2
+
+**Question 2: Does this view need to send user actions to the server?**
+- **Yes** → Continue to Question 3
+- **No** → **Pattern C** (State Observation and UI Updates)
+  - Use for: Status bars, health displays, leaderboards, read-only UI
+  - Benefits: Always shows authoritative server state
+
+**Question 3: Does this view also need to observe server state changes?**
+- **Yes** → **Combination of Pattern B + Pattern C**
+  - Use for: Shop UI (sends purchase intents, observes gold updates)
+  - Use for: Inventory UI (sends equip intents, observes inventory changes)
+  - Pattern B handles user actions, Pattern C updates display
+- **No** → **Pattern B** (Intent-Based with Server Validation)
+  - Use for: One-shot actions that don't need state updates
+  - Use for: Actions where other views show the state (CashMachine + StatusBar)
+
+**Visual Decision Tree:**
+
+```
+Does view need server communication?
+├─ No → Pattern A (Pure Client)
+└─ Yes → Does view send user actions?
+    ├─ No → Pattern C (State Observation)
+    └─ Yes → Does view also observe state?
+        ├─ No → Pattern B (Intent-Based)
+        └─ Yes → Pattern B + C (Combination)
+```
+
+**Examples by Pattern:**
+
+✅ **Pattern A** (Pure Client-Side):
+- Particle effect when hovering over object
+- Sound effect on button hover
+- Camera shake on explosion
+- Tween animation on UI element
+- Local visual feedback that doesn't affect game state
+
+✅ **Pattern B** (Intent-Based):
+- Cash machine withdraw button (StatusBarView shows gold update separately)
+- Donate treasure button (shrine state shown elsewhere)
+- Trigger server event (no UI update needed in this view)
+
+✅ **Pattern C** (State Observation):
+- Status bar showing gold/treasure (read-only display)
+- Health bar showing player HP (no user interaction)
+- Leaderboard showing server state (updates automatically)
+
+✅ **Pattern B + C** (Combination):
+- Shop UI (buy button sends intent + gold display observes state)
+- Inventory UI (equip button sends intent + inventory list observes state)
+- Trading UI (offer button sends intent + trade status observes state)
+
+**Common Mistakes:**
+
+❌ Using Pattern A for game state changes
+- Don't update UI based on client predictions alone
+- Always wait for server confirmation for authoritative state
+
+❌ Using Pattern B without considering state updates
+- If your view displays changing data, you likely need Pattern C too
+- Separate concerns: Button (B) + Display (C)
+
+❌ Not filtering ownerId for "all" scope broadcasts
+- Server-scoped models broadcast to all players
+- Views must filter to show only relevant data
+
 ### Step 2: Create Your View File
 
 Create a new LocalScript in `src/client/views/YourView.client.lua`:
@@ -394,6 +469,297 @@ end)
 - Single source of truth for all state event names and types
 - Easy refactoring - change in one place, type errors guide you everywhere
 - No duplicate type definitions across views
+
+## Working with StateEvents (View Perspective)
+
+When creating views that observe model state, you use StateEvents to get type-safe access to state change events and their data structures.
+
+### What are StateEvents?
+
+StateEvents is a centralized module (`src/shared/StateEvents.lua`) that provides:
+- **Event name constants** - Single source of truth for RemoteEvent names
+- **Exported data types** - Type-safe state data structures
+- **Complete MVC type safety** - From model through view
+
+### When to Use StateEvents in Views
+
+Use StateEvents when:
+- ✅ Your view needs to display model state (Pattern C)
+- ✅ Your view needs to update UI when server state changes
+- ✅ You want type-safe access to state data properties
+
+### Step-by-Step: Using StateEvents in Views
+
+**1. Import StateEvents module**
+
+```lua
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StateEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StateEvents"))
+```
+
+**2. Get the RemoteEvent using event name constant**
+
+```lua
+local eventsFolder = ReplicatedStorage:WaitForChild("Events")
+local stateChangedEvent = eventsFolder:WaitForChild(StateEvents.YourModel.EventName)
+```
+
+**3. Set up typed listener**
+
+```lua
+stateChangedEvent.OnClientEvent:Connect(function(data: StateEvents.YourModelData)
+    -- Luau knows the structure of data!
+    -- data.property1, data.property2, etc. are all typed
+    updateUI(data)
+end)
+```
+
+**4. Request initial state (for Pattern C views)**
+
+```lua
+-- IMPORTANT: Set up listener FIRST, then request initial state
+stateChangedEvent:FireServer()  -- Requests current state from server
+```
+
+### Complete Example: StatusBarView
+
+This view observes inventory state and updates a UI display:
+
+```lua
+--!strict
+
+local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+-- Import StateEvents for type-safe state observation
+local StateEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StateEvents"))
+
+local TAG = "StatusBar"
+local localPlayer = Players.LocalPlayer
+
+-- Get state change event using constant
+local eventsFolder = ReplicatedStorage:WaitForChild("Events")
+local inventoryStateChanged = eventsFolder:WaitForChild(StateEvents.Inventory.EventName)
+
+-- Listen for inventory state changes with typed data
+inventoryStateChanged.OnClientEvent:Connect(function(data: StateEvents.InventoryData)
+    -- Type-safe access to properties!
+    print("Gold:", data.gold)
+    print("Treasure:", data.treasure)
+
+    -- Update all status bars
+    for _, screenGui in CollectionService:GetTagged(TAG) do
+        local goldLabel = screenGui:FindFirstChild("GoldLabel", true) :: TextLabel
+        local treasureLabel = screenGui:FindFirstChild("TreasureLabel", true) :: TextLabel
+
+        if goldLabel then
+            goldLabel.Text = "Gold: " .. tostring(data.gold)
+        end
+        if treasureLabel then
+            treasureLabel.Text = "Treasure: " .. tostring(data.treasure)
+        end
+    end
+end)
+
+-- Request initial state
+task.wait(1)  -- Wait for RemoteEvent to replicate
+inventoryStateChanged:FireServer()
+```
+
+### ownerId Filtering: When Do You Need It?
+
+**Important:** Understanding when to filter by ownerId depends on the model's broadcast scope.
+
+#### User-Scoped Models (fire("owner"))
+
+Models that broadcast with `fire("owner")` already filter on the server:
+
+```lua
+-- NO FILTERING NEEDED - server already sent only to this player
+inventoryStateChanged.OnClientEvent:Connect(function(data: StateEvents.InventoryData)
+    -- This data is already for the local player
+    updateUI(data.gold, data.treasure)
+end)
+```
+
+**Why no filtering?**
+- Server uses `FireClient(player, data)` for "owner" scope
+- Only the owning player receives the event
+- No other players see this data
+
+#### Server-Scoped Models (fire("all"))
+
+Models that broadcast with `fire("all")` send to all players:
+
+```lua
+-- FILTERING NEEDED - all players receive this
+shrineStateChanged.OnClientEvent:Connect(function(data: StateEvents.ShrineData)
+    -- All players get this, filter if you only want certain data
+    print("Last donor:", data.buyerName)
+    print("Total treasure:", data.treasure)
+
+    -- ownerId is "SERVER" for server-scoped models
+    -- Usually you want to show this to everyone (that's why it's "all" scope)
+end)
+```
+
+**When to filter server-scoped data:**
+- When showing player-specific views of shared data
+- Example: Leaderboard showing local player highlighted
+- Use `localPlayer.UserId` or `localPlayer.Name` to filter display logic
+
+### Common Patterns
+
+#### Pattern 1: Display-Only View (Status Bar)
+
+```lua
+-- Setup listener
+stateChanged.OnClientEvent:Connect(function(data: StateEvents.ModelData)
+    updateLabels(data.property1, data.property2)
+end)
+
+-- Request initial state
+stateChanged:FireServer()
+```
+
+#### Pattern 2: View with User Interaction + State Display
+
+```lua
+-- Part 1: Send intents (Pattern B)
+button.Activated:Connect(function()
+    remoteEvent:FireServer(IntentActions.Feature.Action, parameter)
+end)
+
+-- Part 2: Observe state (Pattern C)
+stateChanged.OnClientEvent:Connect(function(data: StateEvents.ModelData)
+    updateDisplay(data)
+end)
+
+-- Request initial state
+stateChanged:FireServer()
+```
+
+#### Pattern 3: Multiple Models
+
+```lua
+-- Listen to multiple state events
+inventoryStateChanged.OnClientEvent:Connect(function(data: StateEvents.InventoryData)
+    updateInventoryUI(data)
+end)
+
+questStateChanged.OnClientEvent:Connect(function(data: StateEvents.QuestData)
+    updateQuestUI(data)
+end)
+
+-- Request initial state for both
+inventoryStateChanged:FireServer()
+questStateChanged:FireServer()
+```
+
+### Type Safety Benefits
+
+**Autocomplete:**
+```lua
+-- Type StateEvents. and see all available models:
+-- - StateEvents.Inventory.EventName
+-- - StateEvents.Shrine.EventName
+-- - StateEvents.Quest.EventName
+```
+
+**Property access:**
+```lua
+stateChanged.OnClientEvent:Connect(function(data: StateEvents.InventoryData)
+    -- Autocomplete shows: gold, treasure, ownerId
+    local gold = data.gold  -- ✓ Known to be number
+    local invalid = data.silver  -- ✗ Compile-time error!
+end)
+```
+
+**Refactoring:**
+```lua
+-- If InventoryData type changes in StateEvents:
+export type InventoryData = {
+    ownerId: string,
+    gold: number,
+    treasure: number,
+    gems: number,  -- New property added
+}
+
+-- Views show type errors at usage sites, guiding updates
+```
+
+### Initial State Request Pattern
+
+**The correct order:**
+
+```lua
+-- 1. Set up listener FIRST
+stateChanged.OnClientEvent:Connect(function(data)
+    updateUI(data)
+end)
+
+-- 2. Wait for RemoteEvent to replicate
+task.wait(1)
+
+-- 3. Request initial state LAST
+stateChanged:FireServer()
+```
+
+**Why this order matters:**
+- If you request state before setting up the listener, you'll miss the response
+- The server responds immediately when you call FireServer()
+- The wait ensures the RemoteEvent has replicated to the client
+
+**Alternative: Check for existing state**
+
+```lua
+local hasReceivedState = false
+
+stateChanged.OnClientEvent:Connect(function(data)
+    hasReceivedState = true
+    updateUI(data)
+end)
+
+-- Wait for RemoteEvent, then request
+task.wait(1)
+if not hasReceivedState then
+    stateChanged:FireServer()
+end
+```
+
+### Troubleshooting
+
+**Problem:** View not receiving state updates
+- Check: Is the RemoteEvent name correct? Use StateEvents.Model.EventName
+- Check: Did you set up listener before requesting initial state?
+- Check: Is the model firing? Check server Output for fire() debug messages
+- Fix: Verify event name matches model name exactly
+
+**Problem:** Type errors when accessing data properties
+- Check: Are you using the correct exported type? (StateEvents.ModelData)
+- Check: Does the type definition match the model's actual properties?
+- Fix: Update StateEvents.lua to match model's getState() return value
+
+**Problem:** Receiving wrong player's data
+- Check: Is this a user-scoped model using fire("owner")?
+- Answer: No filtering needed - server already filtered
+- Check: Is this a server-scoped model using fire("all")?
+- Answer: This is correct - all players should see it
+
+**Problem:** UI not showing initial state
+- Check: Did you call stateChanged:FireServer() to request initial state?
+- Check: Did you wait for RemoteEvent replication before requesting?
+- Fix: Add task.wait(1) before FireServer() call
+
+### Benefits Summary
+
+✅ **Type Safety** - Catch typos and mismatches at compile-time
+✅ **Single Source of Truth** - Event names defined once
+✅ **IDE Autocomplete** - See all models and their properties
+✅ **Refactoring Safety** - Changes guide you to all usage sites
+✅ **Self-Documenting** - Types show what data to expect
+✅ **No Duplicate Types** - Import once, use everywhere
 
 ### Understanding What Views Actually Send
 

@@ -480,7 +480,7 @@ Player lifecycle is automatically handled by `ModelRunner.server.lua` in the `mo
 - **Auto-discovers** all models in `models/user/` and `models/server/` folders
 - **Server-scoped models**: Initialized once on server startup with ownerId "SERVER"
 - **User-scoped models**: Initialized when players join (PlayerAdded event)
-- **Loads** saved data from DataStore via PersistenceServer (User-scoped only; kicks player if load fails)
+- **Loads** saved data from DataStore via PersistenceService (User-scoped only; kicks player if load fails)
 - **Applies** loaded data to model instances (or uses defaults for new players)
 - **Cleans up** User-scoped model instances when players leave (PlayerRemoving event)
 - **Server-scoped models**: Persist for server lifetime (no per-player cleanup)
@@ -490,9 +490,9 @@ Player lifecycle is automatically handled by `ModelRunner.server.lua` in the `mo
 
 local Players = game:GetService("Players")
 
--- Initialize PersistenceServer before any models are used
-local PersistenceServer = require(script.Parent.Parent.services.PersistenceServer)
-PersistenceServer.init()
+-- Initialize PersistenceService before any models are used
+local PersistenceService = require(script.Parent.Parent.services.PersistenceService)
+PersistenceService.init()
 
 -- Auto-discover and require all models (skip Abstract)
 local modelsFolder = script.Parent
@@ -559,7 +559,7 @@ Players.PlayerAdded:Connect(function(player: Player)
 		-- Only initialize User-scoped models per player
 		if modelInfo.scope == "User" then
 			-- Load data from DataStore for this model
-			local success, loadedData = PersistenceServer:loadModel(modelInfo.name, ownerId)
+			local success, loadedData = PersistenceService:loadModel(modelInfo.name, ownerId)
 
 			-- If load failed, kick the player to prevent data loss
 			if not success then

@@ -4,7 +4,7 @@ local DataStoreService = game:GetService("DataStoreService")
 local RunService = game:GetService("RunService")
 local Players = game:GetService("Players")
 
-local PersistenceServer = {}
+local PersistenceService = {}
 
 -- Configuration
 local BASE_TOKENS = 50 -- Base tokens available (safety margin from 60)
@@ -58,7 +58,7 @@ local function updateMaxTokens()
 
 	print(
 		string.format(
-			"[PersistenceServer] Max tokens updated: %d (base: %d + %d players × %d)",
+			"[PersistenceService] Max tokens updated: %d (base: %d + %d players × %d)",
 			currentMaxTokens,
 			BASE_TOKENS,
 			playerCount,
@@ -91,14 +91,14 @@ local function processWrite(request: WriteRequest): boolean
 	if success then
 		print(
 			string.format(
-				"[PersistenceServer] ✓ Successfully wrote %s for owner %s",
+				"[PersistenceService] ✓ Successfully wrote %s for owner %s",
 				request.modelName,
 				request.ownerId
 			)
 		)
 		return true
 	else
-		warn(string.format("[PersistenceServer] ✗ Failed to write %s for owner %s: %s", request.modelName, request.ownerId, tostring(err)))
+		warn(string.format("[PersistenceService] ✗ Failed to write %s for owner %s: %s", request.modelName, request.ownerId, tostring(err)))
 		return false
 	end
 end
@@ -121,7 +121,7 @@ local function startQueueProcessor()
 				if #writeQueue > QUEUE_WARNING_THRESHOLD then
 					warn(
 						string.format(
-							"[PersistenceServer] Queue is large (%d items). Consider optimizing write frequency.",
+							"[PersistenceService] Queue is large (%d items). Consider optimizing write frequency.",
 							#writeQueue
 						)
 					)
@@ -152,11 +152,11 @@ local function startQueueProcessor()
 	end)
 end
 
--- Initialize the PersistenceServer
-function PersistenceServer.init()
+-- Initialize the PersistenceService
+function PersistenceService.init()
 	-- Only initialize in non-Studio environments or in Studio if testing
 	if RunService:IsStudio() then
-		warn("[PersistenceServer] Running in Studio - DataStore operations may be limited")
+		warn("[PersistenceService] Running in Studio - DataStore operations may be limited")
 	end
 
 	-- Get or create the DataStore
@@ -166,17 +166,17 @@ function PersistenceServer.init()
 
 	if success then
 		dataStore = result
-		print("[PersistenceServer] Initialized successfully")
+		print("[PersistenceService] Initialized successfully")
 	else
-		warn("[PersistenceServer] Failed to initialize DataStore: " .. tostring(result))
-		warn("[PersistenceServer] Make sure Studio Access to API Services is enabled")
+		warn("[PersistenceService] Failed to initialize DataStore: " .. tostring(result))
+		warn("[PersistenceService] Make sure Studio Access to API Services is enabled")
 		-- Create a dummy dataStore to prevent errors
 		dataStore = {
 			SetAsync = function()
-				warn("[PersistenceServer] Dummy SetAsync called - DataStore not available")
+				warn("[PersistenceService] Dummy SetAsync called - DataStore not available")
 			end,
 			GetAsync = function()
-				warn("[PersistenceServer] Dummy GetAsync called - DataStore not available")
+				warn("[PersistenceService] Dummy GetAsync called - DataStore not available")
 				return nil -- Simulate new player with no saved data
 			end,
 		} :: any
@@ -200,12 +200,12 @@ function PersistenceServer.init()
 	game:BindToClose(function()
 		-- Skip in Studio to avoid blocking offline testing
 		if RunService:IsStudio() then
-			print("[PersistenceServer] BindToClose skipped in Studio")
+			print("[PersistenceService] BindToClose skipped in Studio")
 			return
 		end
 
-		print("[PersistenceServer] Server shutting down - flushing all pending writes")
-		PersistenceServer:flushAllWrites()
+		print("[PersistenceService] Server shutting down - flushing all pending writes")
+		PersistenceService:flushAllWrites()
 	end)
 
 	-- Start the background processor
@@ -217,7 +217,7 @@ end
 -- - New player: (true, nil) - Success, no data found
 -- - Existing player: (true, data) - Success with loaded data
 -- - Load failed: (false, nil) - Failure, should kick player
-function PersistenceServer:loadModel(modelName: string, ownerId: string): (boolean, { [string]: any }?)
+function PersistenceService:loadModel(modelName: string, ownerId: string): (boolean, { [string]: any }?)
 	local key = modelName .. "_" .. ownerId
 
 	local success, result = pcall(function()
@@ -228,7 +228,7 @@ function PersistenceServer:loadModel(modelName: string, ownerId: string): (boole
 		if result then
 			print(
 				string.format(
-					"[PersistenceServer] ✓ Loaded %s for owner %s",
+					"[PersistenceService] ✓ Loaded %s for owner %s",
 					modelName,
 					ownerId
 				)
@@ -238,7 +238,7 @@ function PersistenceServer:loadModel(modelName: string, ownerId: string): (boole
 			-- No data found (new player)
 			print(
 				string.format(
-					"[PersistenceServer] No saved data for %s (owner: %s) - using defaults",
+					"[PersistenceService] No saved data for %s (owner: %s) - using defaults",
 					modelName,
 					ownerId
 				)
@@ -249,7 +249,7 @@ function PersistenceServer:loadModel(modelName: string, ownerId: string): (boole
 		-- Load failed
 		warn(
 			string.format(
-				"[PersistenceServer] ✗ Failed to load %s for owner %s: %s",
+				"[PersistenceService] ✗ Failed to load %s for owner %s: %s",
 				modelName,
 				ownerId,
 				tostring(result)
@@ -260,7 +260,7 @@ function PersistenceServer:loadModel(modelName: string, ownerId: string): (boole
 end
 
 -- Queue a write request
-function PersistenceServer:queueWrite(modelName: string, ownerId: string, modelInstance: any)
+function PersistenceService:queueWrite(modelName: string, ownerId: string, modelInstance: any)
 	-- Serialize the model data
 	local serializedData = serializeModelData(modelInstance)
 
@@ -278,7 +278,7 @@ function PersistenceServer:queueWrite(modelName: string, ownerId: string, modelI
 	-- Debug output
 	print(
 		string.format(
-			"[PersistenceServer] Queued write for %s (owner: %s) - Queue size: %d, Tokens: %d",
+			"[PersistenceService] Queued write for %s (owner: %s) - Queue size: %d, Tokens: %d",
 			modelName,
 			ownerId,
 			#writeQueue,
@@ -289,8 +289,8 @@ end
 
 -- Flush all pending writes for a specific player
 -- Used when a player is leaving to ensure their data is saved
-function PersistenceServer:flushPlayerWrites(ownerId: string)
-	print(string.format("[PersistenceServer] Flushing writes for owner %s", ownerId))
+function PersistenceService:flushPlayerWrites(ownerId: string)
+	print(string.format("[PersistenceService] Flushing writes for owner %s", ownerId))
 
 	local flushedCount = 0
 	local i = 1
@@ -313,14 +313,14 @@ function PersistenceServer:flushPlayerWrites(ownerId: string)
 		end
 	end
 
-	print(string.format("[PersistenceServer] Flushed %d write(s) for owner %s", flushedCount, ownerId))
+	print(string.format("[PersistenceService] Flushed %d write(s) for owner %s", flushedCount, ownerId))
 end
 
 -- Flush all pending writes
 -- Used during server shutdown to ensure no data is lost
-function PersistenceServer:flushAllWrites()
+function PersistenceService:flushAllWrites()
 	local queueSize = #writeQueue
-	print(string.format("[PersistenceServer] Flushing all writes (%d items in queue)", queueSize))
+	print(string.format("[PersistenceService] Flushing all writes (%d items in queue)", queueSize))
 
 	local startTime = os.clock()
 	local successCount = 0
@@ -342,7 +342,7 @@ function PersistenceServer:flushAllWrites()
 		-- Check if we're running out of time (BindToClose has 30 second limit)
 		local elapsedTime = os.clock() - startTime
 		if elapsedTime > 28 then
-			warn(string.format("[PersistenceServer] Approaching BindToClose timeout! %d items remaining", #writeQueue))
+			warn(string.format("[PersistenceService] Approaching BindToClose timeout! %d items remaining", #writeQueue))
 			break
 		end
 	end
@@ -350,7 +350,7 @@ function PersistenceServer:flushAllWrites()
 	local totalTime = os.clock() - startTime
 	print(
 		string.format(
-			"[PersistenceServer] Flush complete: %d succeeded, %d failed, %.2fs elapsed",
+			"[PersistenceService] Flush complete: %d succeeded, %d failed, %.2fs elapsed",
 			successCount,
 			failCount,
 			totalTime
@@ -359,7 +359,7 @@ function PersistenceServer:flushAllWrites()
 end
 
 -- Get queue stats (useful for debugging)
-function PersistenceServer:getStats(): { queueSize: number, availableTokens: number, maxTokens: number }
+function PersistenceService:getStats(): { queueSize: number, availableTokens: number, maxTokens: number }
 	regenerateTokens()
 	return {
 		queueSize = #writeQueue,
@@ -368,4 +368,4 @@ function PersistenceServer:getStats(): { queueSize: number, availableTokens: num
 	}
 end
 
-return PersistenceServer
+return PersistenceService

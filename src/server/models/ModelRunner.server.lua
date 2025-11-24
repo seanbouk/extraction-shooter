@@ -3,9 +3,9 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
--- Initialize PersistenceServer before any models are used
-local PersistenceServer = require(script.Parent.Parent.services.PersistenceServer)
-PersistenceServer.init()
+-- Initialize PersistenceService before any models are used
+local PersistenceService = require(script.Parent.Parent.services.PersistenceService)
+PersistenceService.init()
 
 -- Auto-discover and require all models (skip Abstract)
 local modelsFolder = script.Parent
@@ -79,7 +79,7 @@ Players.PlayerAdded:Connect(function(player: Player)
 		-- Only initialize User-scoped models per player
 		if modelInfo.scope == "User" then
 			-- Load data from DataStore for this model
-			local success, loadedData = PersistenceServer:loadModel(modelInfo.name, ownerId)
+			local success, loadedData = PersistenceService:loadModel(modelInfo.name, ownerId)
 
 			-- If load failed, kick the player to prevent data loss
 			if not success then
@@ -107,7 +107,7 @@ local playerRemovingConnection = Players.PlayerRemoving:Connect(function(player:
 	print("ModelRunner: Cleaning up models for player " .. player.Name)
 
 	-- Flush all pending writes for this player before cleanup
-	PersistenceServer:flushPlayerWrites(ownerId)
+	PersistenceService:flushPlayerWrites(ownerId)
 
 	-- Only remove User-scoped models (Server-scoped persist for server lifetime)
 	for _, modelInfo in modelInfos do
@@ -133,7 +133,7 @@ game:BindToClose(function()
 	-- Flush all remaining player data
 	for _, player in Players:GetPlayers() do
 		local ownerId = tostring(player.UserId)
-		PersistenceServer:flushPlayerWrites(ownerId)
+		PersistenceService:flushPlayerWrites(ownerId)
 	end
 end)
 

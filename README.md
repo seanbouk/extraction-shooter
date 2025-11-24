@@ -54,7 +54,7 @@ This template implements a strict Model-View-Controller pattern with automatic s
 
 **On Player Join:**
 1. **Player Joins**: PlayerAdded event fires
-2. **Auto-Load**: PersistenceServer loads saved data from DataStore (or uses defaults for new players). If DataStore loading fails, the player is kicked with a friendly message to prevent data corruption.
+2. **Auto-Load**: PersistenceService loads saved data from DataStore (or uses defaults for new players). If DataStore loading fails, the player is kicked with a friendly message to prevent data corruption.
 3. **Model Initialization**: Models are created and loaded data is applied
 4. **Initial Broadcast**: Model broadcasts initial state to the player
 
@@ -75,8 +75,8 @@ This template implements a strict Model-View-Controller pattern with automatic s
 Models represent authoritative game state and live exclusively on the server:
 
 - Single source of truth for all game data
-- Automatically load from DataStore when player joins (via PersistenceServer)
-- Automatically persist to DataStore when state changes (via PersistenceServer)
+- Automatically load from DataStore when player joins (via PersistenceService)
+- Automatically persist to DataStore when state changes (via PersistenceService)
 - Broadcast state changes to clients
 - Examples: PlayerInventory, GameSettings, WorldState
 
@@ -248,7 +248,7 @@ Always start in this order:
 1. **Create the Model** (`src/server/models/`)
    - Define the data structure as a ModuleScript (`.lua`)
    - Call `fire()` after state changes to trigger persistence and broadcasting
-   - DataStore persistence is automatic via PersistenceServer
+   - DataStore persistence is automatic via PersistenceService
    - Example: `PlayerInventory.lua`
 
 2. **Create the Controller** (`src/server/controllers/`)
@@ -291,7 +291,7 @@ These checklists provide step-by-step guidance for adding new components to your
 9. ✓ **Add to StateEvents.lua**:
    - Add event name constant (e.g., `YourModel = { EventName = "YourModelStateChanged" }`)
    - Add exported data type (e.g., `export type YourModelData = { ownerId: string, ... }`)
-10. ✓ **Test with ModelRunner** - Models are auto-discovered by PersistenceServer
+10. ✓ **Test with ModelRunner** - Models are auto-discovered by PersistenceService
 
 **See [MODEL_GUIDE.md](MODEL_GUIDE.md) for detailed examples.**
 
@@ -728,7 +728,7 @@ end)
 - Add weapon inventory to InventoryModel
 - Show owned weapons in UI
 - Add weapon equipping system
-- Persist weapon purchases to DataStore (automatic via PersistenceServer!)
+- Persist weapon purchases to DataStore (automatic via PersistenceService!)
 - Add sell-back functionality
 
 ### General Workflow
@@ -754,7 +754,7 @@ src/
 ├── server/
 │   ├── models/          # Game state (ModuleScripts)
 │   ├── controllers/     # Business logic (Scripts)
-│   └── services/        # Shared server utilities (e.g., PersistenceServer)
+│   └── services/        # Shared server utilities (e.g., PersistenceService)
 ├── client/
 │   ├── views/           # UI and visual logic (LocalScripts)
 │   └── utilities/       # Client-side helpers
@@ -895,7 +895,7 @@ src/
 
 5. **WaitForChild timeout**
    - Check: Is the RemoteEvent being created? Check ReplicatedStorage → Events
-   - Fix: Ensure model is initialized (models auto-initialize via PersistenceServer on player join)
+   - Fix: Ensure model is initialized (models auto-initialize via PersistenceService on player join)
 
 ### My Controller Isn't Receiving Intents
 
@@ -933,7 +933,7 @@ src/
 
 1. **Model not calling fire()**
    - Check: Do your model methods call `self:fire(scope)`?
-   - Fix: PersistenceServer triggers on RemoteEvent fire - no fire means no save!
+   - Fix: PersistenceService triggers on RemoteEvent fire - no fire means no save!
 
 2. **Server-scoped model expecting persistence**
    - Check: Is your model using "Server" scope?

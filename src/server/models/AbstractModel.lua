@@ -3,7 +3,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
-local PersistenceServer = require(script.Parent.Parent.services.PersistenceServer)
+local PersistenceService = require(script.Parent.Parent.services.PersistenceService)
 
 local AbstractModel = {}
 AbstractModel.__index = AbstractModel
@@ -153,7 +153,7 @@ function AbstractModel:fire(scope: "owner" | "all", skipPersistence: boolean?): 
 
 	-- Queue persistence write (unless explicitly skipped or Server-scoped)
 	if not skipPersistence and self._scope ~= "Server" then
-		PersistenceServer:queueWrite(self._modelName, self.ownerId, self)
+		PersistenceService:queueWrite(self._modelName, self.ownerId, self)
 	end
 
 	print("=== Firing " .. tostring(self) .. " (scope: " .. scope .. ") ===")

@@ -147,6 +147,44 @@ The help system automatically:
 - **Filters out** private methods (starting with `_`) and internal implementation details
 - **Displays in chat** so all players with permission can see the information
 
+### Using /state Command
+
+The `/state` command provides instant visibility into model state for debugging and QA:
+
+**View all model state:**
+```
+/state
+```
+
+Shows the current state of all user-scoped and server-scoped models with their property values.
+
+**View specific model state:**
+```
+/state modelname
+```
+
+Shows the current state of a specific model with all its properties.
+
+**Examples:**
+```
+/state                     → Shows all model states (user and server)
+/state inventorymodel      → Shows: gold: 1000, treasure: 5
+/state shrinemodel         → Shows: treasure: 42, userId: 987654321
+```
+
+The state query system automatically:
+- **Introspects model properties** via runtime inspection (same pattern as `/help`)
+- **Filters out internal fields** (ownerId, remoteEvent, private fields, functions)
+- **Shows only game-relevant data** for clean, readable output
+- **Works with all models** - zero instrumentation required
+- **Displays in chat** for easy sharing with team members
+
+**Use cases:**
+- **Designers**: Verify game state during playtesting
+- **QA**: Confirm expected state changes after actions
+- **Developers**: Debug state issues without adding print statements
+- **Support**: Quickly check player data for support tickets
+
 ### Zero Configuration Required
 
 Both models and controllers are **fully discoverable without any additional code**:

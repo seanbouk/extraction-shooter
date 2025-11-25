@@ -223,8 +223,11 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 			helpText ..= "\n"
 		end
 
-		helpText ..= "Usage: /help <command> - Show methods/actions for a command\n"
-		helpText ..= "       /<command> <method> [args...] - Execute a command"
+		helpText ..= "SPECIAL COMMANDS:\n"
+		helpText ..= "  /help [command] - Show this help or details for a command\n"
+		helpText ..= "  /state [model] - Show model state (all models or specific)\n"
+		helpText ..= "\n"
+		helpText ..= "Usage: /<command> <method> [args...] - Execute a command"
 
 		return true, helpText
 	else
@@ -319,6 +322,177 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 end
 
 --[[
+	Shows state information for models
+	Format: /state [modelname]
+]]
+local function queryModelState(player: Player, modelName: string?): (boolean, string)
+	if not modelName then
+		-- Show all model state (user and server)
+		local output = "=== Model State Summary ===\n\n"
+
+		-- Collect user models
+		local userModelNames = {}
+		for name, _ in userModels do
+			table.insert(userModelNames, name)
+		end
+		table.sort(userModelNames)
+
+		-- Show user model states
+		if #userModelNames > 0 then
+			for _, name in userModelNames do
+				local modelClass = userModels[name]
+				local modelInstance = modelClass.get(tostring(player.UserId))
+
+				output ..= `--- {name:upper()} (USER) ---\n`
+
+				if modelInstance then
+					-- Introspect properties
+					local properties = {}
+					for key, value in pairs(modelInstance) do
+						-- Filter out internal fields and functions
+						if not key:match("^_")
+							and key ~= "ownerId"
+							and key ~= "remoteEvent"
+							and type(value) ~= "function" then
+							properties[key] = value
+						end
+					end
+
+					-- Sort and display
+					local sortedKeys = {}
+					for key, _ in pairs(properties) do
+						table.insert(sortedKeys, key)
+					end
+					table.sort(sortedKeys)
+
+					if #sortedKeys > 0 then
+						for _, key in sortedKeys do
+							output ..= `  {key}: {tostring(properties[key])}\n`
+						end
+					else
+						output ..= "  (no properties)\n"
+					end
+				else
+					output ..= "  (instance not found)\n"
+				end
+
+				output ..= "\n"
+			end
+		end
+
+		-- Collect server models
+		local serverModelNames = {}
+		for name, _ in serverModels do
+			table.insert(serverModelNames, name)
+		end
+		table.sort(serverModelNames)
+
+		-- Show server model states
+		if #serverModelNames > 0 then
+			for _, name in serverModelNames do
+				local modelClass = serverModels[name]
+				local modelInstance = modelClass.get("SERVER")
+
+				output ..= `--- {name:upper()} (SERVER) ---\n`
+
+				if modelInstance then
+					-- Introspect properties
+					local properties = {}
+					for key, value in pairs(modelInstance) do
+						-- Filter out internal fields and functions
+						if not key:match("^_")
+							and key ~= "ownerId"
+							and key ~= "remoteEvent"
+							and type(value) ~= "function" then
+							properties[key] = value
+						end
+					end
+
+					-- Sort and display
+					local sortedKeys = {}
+					for key, _ in pairs(properties) do
+						table.insert(sortedKeys, key)
+					end
+					table.sort(sortedKeys)
+
+					if #sortedKeys > 0 then
+						for _, key in sortedKeys do
+							output ..= `  {key}: {tostring(properties[key])}\n`
+						end
+					else
+						output ..= "  (no properties)\n"
+					end
+				else
+					output ..= "  (instance not found)\n"
+				end
+
+				output ..= "\n"
+			end
+		end
+
+		if #userModelNames == 0 and #serverModelNames == 0 then
+			output ..= "No models registered.\n"
+		end
+
+		return true, output
+	else
+		-- Query specific model
+		local target = modelName:lower()
+		local modelClass = userModels[target] or serverModels[target]
+
+		if not modelClass then
+			return false, `Model '{modelName}' not found`
+		end
+
+		local isServerModel = serverModels[target] ~= nil
+		local scope = isServerModel and "SERVER" or "USER"
+
+		-- Get model instance
+		local modelInstance
+		if isServerModel then
+			modelInstance = modelClass.get("SERVER")
+		else
+			modelInstance = modelClass.get(tostring(player.UserId))
+		end
+
+		if not modelInstance then
+			return false, `Could not get instance of {modelName}`
+		end
+
+		-- Introspect properties
+		local properties = {}
+		for key, value in pairs(modelInstance) do
+			-- Filter out internal fields and functions
+			if not key:match("^_")
+				and key ~= "ownerId"
+				and key ~= "remoteEvent"
+				and type(value) ~= "function" then
+				properties[key] = value
+			end
+		end
+
+		-- Build output
+		local output = `=== {target:upper()} ({scope}) ===\n\n`
+
+		local sortedKeys = {}
+		for key, _ in pairs(properties) do
+			table.insert(sortedKeys, key)
+		end
+		table.sort(sortedKeys)
+
+		if #sortedKeys > 0 then
+			for _, key in sortedKeys do
+				output ..= `{key}: {tostring(properties[key])}\n`
+			end
+		else
+			output ..= "(no properties)\n"
+		end
+
+		return true, output
+	end
+end
+
+--[[
 	Handles command execution from client
 	Format: commandString = "targetname methodname args..."
 ]]
@@ -345,6 +519,15 @@ local function handleCommand(player: Player, commandString: string): ()
 		local success, message = showHelp(player, helpTarget)
 		sendChatMessage(player, message)
 		print(`[SlashCommand] {player.Name} used /help` .. (helpTarget and ` {helpTarget}` or ""))
+		return
+	end
+
+	-- Handle /state command specially
+	if targetName:lower() == "state" then
+		local modelTarget = parts[2] -- May be nil (show all models)
+		local success, message = queryModelState(player, modelTarget)
+		sendChatMessage(player, message)
+		print(`[SlashCommand] {player.Name} used /state` .. (modelTarget and ` {modelTarget}` or ""))
 		return
 	end
 
@@ -424,6 +607,12 @@ function SlashCommandService:createTextChatCommands(): ()
 	helpCommand.Name = "help"
 	helpCommand.PrimaryAlias = "/help"
 	helpCommand.Parent = textCommands
+
+	-- Create /state command
+	local stateCommand = Instance.new("TextChatCommand")
+	stateCommand.Name = "state"
+	stateCommand.PrimaryAlias = "/state"
+	stateCommand.Parent = textCommands
 
 	-- Create a command for each user-scoped model
 	for modelName, _ in userModels do

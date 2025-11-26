@@ -7,23 +7,19 @@ local TweenService = game:GetService("TweenService")
 
 local localPlayer = Players.LocalPlayer
 
--- Import shared constants and state events
 local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
 local StateEvents = require(ReplicatedStorage:WaitForChild("StateEvents"))
 
--- Get remote events
 local eventsFolder = ReplicatedStorage:WaitForChild("Events")
 local shrineIntent = eventsFolder:WaitForChild("ShrineIntent") :: RemoteEvent
 local shrineStateChanged = eventsFolder:WaitForChild(StateEvents.Shrine.EventName) :: RemoteEvent
 local inventoryStateChanged = eventsFolder:WaitForChild(StateEvents.Inventory.EventName) :: RemoteEvent
 
--- Constants
 local SHRINE_TAG = "Shrine"
 local DONATION_AMOUNT = 1
 
 local currentTreasure = 0
 
--- Helper to get player name from UserId
 local function getPlayerNameFromUserId(userId: string): string
 	local userIdNum = tonumber(userId)
 	if not userIdNum then
@@ -49,18 +45,15 @@ local function setupShrine(shrine: Instance)
 	local textBox = surfaceGui:WaitForChild("TextBox") :: TextLabel
 	local particleEmitter = base:WaitForChild("ParticleEmitter") :: ParticleEmitter
 
-	-- Store original scale values to preserve designer settings
 	local originalXScale = textBox.Position.X.Scale
 	local originalYScale = textBox.Position.Y.Scale
 	local originalYOffset = textBox.Position.Y.Offset
 
-	-- Per-shrine animation state to prevent race conditions
 	local activeTween1: Tween? = nil
 	local activeTween2: Tween? = nil
 	local tween1Connection: RBXScriptConnection? = nil
 	local tween2Connection: RBXScriptConnection? = nil
 
-	-- Initialize position with X offset at 400
 	textBox.Position = UDim2.new(
 		originalXScale,
 		400,
@@ -68,47 +61,36 @@ local function setupShrine(shrine: Instance)
 		originalYOffset
 	)
 
-	-- Function to update visual state
 	local function updateState(canAfford: boolean)
 		if canAfford then
-			-- Available state: Can afford
 			proximityPrompt.Enabled = true
 			proximityPrompt.ActionText = "Donate (1 treasure)"
 		else
-			-- Locked state: Cannot afford
 			proximityPrompt.Enabled = false
 			proximityPrompt.ActionText = "Need 1 treasure"
 		end
 	end
 
-	-- Initialize with default state
 	updateState(currentTreasure >= DONATION_AMOUNT)
 	textBox.Text = "Shrine awaits..."
 
-	-- Connect to proximity prompt
 	proximityPrompt.Triggered:Connect(function(player: Player)
 		if player ~= localPlayer then
 			return
 		end
 
-		-- Immediate feedback
 		sound:Play()
-
-		-- Send intent to server
 		shrineIntent:FireServer(IntentActions.Shrine.Donate)
 	end)
 
 	-- Listen for shrine state changes (ALL players see this - no ownerId filter!)
 	shrineStateChanged.OnClientEvent:Connect(function(shrineData: StateEvents.ShrineData)
-		-- Emit particles based on total treasure count
 		particleEmitter:Emit(shrineData.treasure)
 
-		-- Update text to show who donated
 		if shrineData.userId and shrineData.userId ~= "" then
 			local username = getPlayerNameFromUserId(shrineData.userId)
 			textBox.Text = "Thank you, " .. username .. "!"
 
-			-- CLEANUP: Cancel any running tweens and disconnect event handlers
 			if activeTween1 then
 				activeTween1:Cancel()
 			end
@@ -124,10 +106,8 @@ local function setupShrine(shrine: Instance)
 				tween2Connection = nil
 			end
 
-			-- Reset position to starting point (400 offset)
 			textBox.Position = UDim2.new(originalXScale, 400, originalYScale, originalYOffset)
 
-			-- First tween info: 2 seconds, BounceOut
 			local tweenInfo1 = TweenInfo.new(
 				2,
 				Enum.EasingStyle.Bounce,
@@ -137,7 +117,6 @@ local function setupShrine(shrine: Instance)
 				0
 			)
 
-			-- Second tween info: 1.5 seconds, Circular EaseOut (delayed by 1 second)
 			local tweenInfo2 = TweenInfo.new(
 				1.5,
 				Enum.EasingStyle.Circular,
@@ -147,17 +126,14 @@ local function setupShrine(shrine: Instance)
 				0
 			)
 
-			-- First tween: 400 -> 0 (2 seconds)
 			activeTween1 = TweenService:Create(textBox, tweenInfo1, {
 				Position = UDim2.new(originalXScale, 0, originalYScale, originalYOffset)
 			})
 
-			-- Second tween: 0 -> -300 (3 seconds)
 			activeTween2 = TweenService:Create(textBox, tweenInfo2, {
 				Position = UDim2.new(originalXScale, -300, originalYScale, originalYOffset)
 			})
 
-			-- Chain them with 1 second delay (start at 3 seconds total)
 			tween1Connection = activeTween1.Completed:Connect(function()
 				task.wait(1)
 				if activeTween2 then
@@ -165,17 +141,14 @@ local function setupShrine(shrine: Instance)
 				end
 			end)
 
-			-- Reset position to 400 when animation completes
 			tween2Connection = activeTween2.Completed:Connect(function()
 				textBox.Position = UDim2.new(originalXScale, 400, originalYScale, originalYOffset)
 			end)
 
-			-- Start the animation
 			activeTween1:Play()
 		end
 	end)
 
-	-- Listen for inventory changes (only local player)
 	inventoryStateChanged.OnClientEvent:Connect(function(inventoryData: StateEvents.InventoryData)
 		local localPlayerId = tostring(localPlayer.UserId)
 		if inventoryData.ownerId == localPlayerId then
@@ -184,18 +157,15 @@ local function setupShrine(shrine: Instance)
 		end
 	end)
 
-	-- Request initial state
 	inventoryStateChanged:FireServer()
 end
 
--- Initialize existing shrines
 for _, shrine in ipairs(CollectionService:GetTagged(SHRINE_TAG)) do
 	task.spawn(function()
 		setupShrine(shrine)
 	end)
 end
 
--- Handle newly added shrines
 CollectionService:GetInstanceAddedSignal(SHRINE_TAG):Connect(function(shrine: Instance)
 	task.spawn(function()
 		setupShrine(shrine)

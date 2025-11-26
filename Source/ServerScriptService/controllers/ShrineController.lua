@@ -16,7 +16,6 @@ export type ShrineController = typeof(setmetatable({}, ShrineController)) & Abst
 local DONATION_AMOUNT = 1
 
 local function donate(inventory: any, shrine: any, player: Player)
-	-- Attempt to spend treasure
 	if inventory:spendTreasure(DONATION_AMOUNT) then
 		shrine:donate(tostring(player.UserId), DONATION_AMOUNT)
 	else
@@ -28,11 +27,9 @@ local ACTIONS = {
 	[IntentActions.Shrine.Donate] = donate,
 }
 
--- Public method for slash commands to call directly
 function ShrineController:executeAction(player: Player, action: IntentActions.ShrineAction)
-	-- Get models
 	local inventory = InventoryModel.get(tostring(player.UserId))
-	local shrine = ShrineModel.get("SERVER") -- Server-scoped model
+	local shrine = ShrineModel.get("SERVER")
 
 	self:dispatchAction(ACTIONS, action, player, inventory, shrine, player)
 end

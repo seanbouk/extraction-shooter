@@ -22,26 +22,16 @@ local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
 
 local SlashCommandService = {}
 
--- Minimum rank required to use slash commands
 local MIN_RANK = 200
 
--- Registered models and controllers
 local userModels: { [string]: any } = {}
 local serverModels: { [string]: any } = {}
 local controllers: { [string]: { instance: any, remoteEvent: RemoteEvent, originalName: string } } = {}
 
--- RemoteEvent for command execution (client → server intent)
 local commandRemote: RemoteEvent = nil
-
--- RemoteEvent for state changes (server → client feedback)
 local messageRemote: RemoteEvent = nil
-
--- Group ID (determined at runtime)
 local groupId: number? = nil
 
---[[
-	Sends a message to the player's chat window
-]]
 local function sendChatMessage(player: Player, message: string): ()
 	if messageRemote then
 		messageRemote:FireClient(player, message)
@@ -50,38 +40,25 @@ local function sendChatMessage(player: Player, message: string): ()
 	end
 end
 
---[[
-	Checks if a player has sufficient rank to use slash commands
-]]
 local function hasPermission(player: Player): boolean
-	-- If game is owned by a group, check rank in that group
 	if groupId then
 		return player:GetRankInGroup(groupId) >= MIN_RANK
 	end
 
-	-- If game is owned by a user (not a group), allow all players with Studio Edit access
-	-- or you could check if player is the owner: player.UserId == game.CreatorId
-	-- For now, we'll allow everyone if not in a group (you can customize this)
 	warn(`[SlashCommandService] Game is not owned by a group. Allowing all players to use commands.`)
 	return true
 end
 
---[[
-	Parses command arguments from a string
-	Attempts to convert to appropriate types (number, boolean, string)
-]]
 local function parseArguments(argString: string): { any }
 	local args = {}
 
 	for arg in string.gmatch(argString, "%S+") do
-		-- Try to parse as number
 		local num = tonumber(arg)
 		if num then
 			table.insert(args, num)
 			continue
 		end
 
-		-- Try to parse as boolean
 		if arg == "true" then
 			table.insert(args, true)
 			continue
@@ -90,24 +67,17 @@ local function parseArguments(argString: string): { any }
 			continue
 		end
 
-		-- Default to string
 		table.insert(args, arg)
 	end
 
 	return args
 end
 
---[[
-	Executes a model command
-	Format: /modelname methodname args...
-]]
 local function executeModelCommand(player: Player, modelName: string, methodName: string, args: { any }): (boolean, string)
-	-- Check user-scoped models first
 	local modelClass = userModels[modelName:lower()]
 	local isServerModel = false
 
 	if not modelClass then
-		-- Check server-scoped models
 		modelClass = serverModels[modelName:lower()]
 		isServerModel = true
 	end
@@ -116,7 +86,6 @@ local function executeModelCommand(player: Player, modelName: string, methodName
 		return false, `Model '{modelName}' not found`
 	end
 
-	-- Get the model instance
 	local modelInstance
 	if isServerModel then
 		modelInstance = modelClass.get("SERVER")
@@ -128,12 +97,10 @@ local function executeModelCommand(player: Player, modelName: string, methodName
 		return false, `Could not get instance of {modelName}`
 	end
 
-	-- Check if method exists
 	if type(modelInstance[methodName]) ~= "function" then
 		return false, `Method '{methodName}' not found in {modelName}`
 	end
 
-	-- Call the method
 	local success, err = pcall(function()
 		modelInstance[methodName](modelInstance, table.unpack(args))
 	end)
@@ -145,10 +112,6 @@ local function executeModelCommand(player: Player, modelName: string, methodName
 	return true, `Executed {modelName}:{methodName}`
 end
 
---[[
-	Executes a controller command
-	Format: /controllername actionname args...
-]]
 local function executeControllerCommand(player: Player, controllerName: string, actionName: string, args: { any }): (boolean, string)
 	local controllerInfo = controllers[controllerName:lower()]
 
@@ -156,8 +119,6 @@ local function executeControllerCommand(player: Player, controllerName: string, 
 		return false, `Controller '{controllerName}' not found`
 	end
 
-	-- Call the controller's executeAction method directly
-	-- Controllers expose this method for slash command execution
 	local success, err = pcall(function()
 		controllerInfo.instance:executeAction(player, actionName, table.unpack(args))
 	end)
@@ -169,16 +130,10 @@ local function executeControllerCommand(player: Player, controllerName: string, 
 	return true, `Executed {controllerName}:{actionName}`
 end
 
---[[
-	Shows help information for commands
-	Format: /help [targetname]
-]]
 local function showHelp(player: Player, targetName: string?): (boolean, string)
 	if not targetName then
-		-- Show all available commands
 		local helpText = "=== Available Slash Commands ===\n\n"
 
-		-- List user models
 		local userModelNames = {}
 		for name, _ in userModels do
 			table.insert(userModelNames, name)
@@ -193,7 +148,6 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 			helpText ..= "\n"
 		end
 
-		-- List server models
 		local serverModelNames = {}
 		for name, _ in serverModels do
 			table.insert(serverModelNames, name)
@@ -208,7 +162,6 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 			helpText ..= "\n"
 		end
 
-		-- List controllers
 		local controllerNames = {}
 		for name, _ in controllers do
 			table.insert(controllerNames, name)
@@ -231,16 +184,13 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 
 		return true, helpText
 	else
-		-- Show details for specific command
 		local target = targetName:lower()
 
-		-- Check if it's a model (user or server)
 		local modelClass = userModels[target] or serverModels[target]
 		if modelClass then
 			local isUserModel = userModels[target] ~= nil
 			local scope = isUserModel and "USER" or "SERVER"
 
-			-- Get model instance to introspect methods
 			local modelInstance
 			if isUserModel then
 				modelInstance = modelClass.get(tostring(player.UserId))
@@ -252,12 +202,10 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 				return false, `Could not get instance of {targetName}`
 			end
 
-			-- Discover public methods from the metatable
 			local methods = {}
 			local metatable = getmetatable(modelInstance)
 			if metatable then
 				for key, value in pairs(metatable) do
-					-- Filter out private methods, special metatable keys, static methods, and non-functions
 					if type(value) == "function"
 						and not key:match("^_")
 						and not key:match("^__")
@@ -284,16 +232,12 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 			return true, helpText
 		end
 
-		-- Check if it's a controller
 		local controllerInfo = controllers[target]
 		if controllerInfo then
 			local actions = {}
 
-			-- Parse controller name to match IntentActions key
-			-- e.g., "BazaarController" → "Bazaar", "CashMachineController" → "CashMachine"
 			local controllerKey = controllerInfo.originalName:gsub("Controller$", "")
 
-			-- Get actions from IntentActions module
 			local actionsTable = IntentActions[controllerKey]
 			if actionsTable then
 				for _, actionName in pairs(actionsTable) do
@@ -321,23 +265,16 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 	end
 end
 
---[[
-	Shows state information for models
-	Format: /state [modelname]
-]]
 local function queryModelState(player: Player, modelName: string?): (boolean, string)
 	if not modelName then
-		-- Show all model state (user and server)
 		local output = "=== Model State Summary ===\n\n"
 
-		-- Collect user models
 		local userModelNames = {}
 		for name, _ in userModels do
 			table.insert(userModelNames, name)
 		end
 		table.sort(userModelNames)
 
-		-- Show user model states
 		if #userModelNames > 0 then
 			for _, name in userModelNames do
 				local modelClass = userModels[name]
@@ -346,7 +283,6 @@ local function queryModelState(player: Player, modelName: string?): (boolean, st
 				output ..= `--- {name:upper()} (USER) ---\n`
 
 				if modelInstance then
-					-- Introspect properties
 					local properties = {}
 					for key, value in pairs(modelInstance) do
 						-- Filter out internal fields and functions
@@ -380,14 +316,12 @@ local function queryModelState(player: Player, modelName: string?): (boolean, st
 			end
 		end
 
-		-- Collect server models
 		local serverModelNames = {}
 		for name, _ in serverModels do
 			table.insert(serverModelNames, name)
 		end
 		table.sort(serverModelNames)
 
-		-- Show server model states
 		if #serverModelNames > 0 then
 			for _, name in serverModelNames do
 				local modelClass = serverModels[name]
@@ -396,7 +330,6 @@ local function queryModelState(player: Player, modelName: string?): (boolean, st
 				output ..= `--- {name:upper()} (SERVER) ---\n`
 
 				if modelInstance then
-					-- Introspect properties
 					local properties = {}
 					for key, value in pairs(modelInstance) do
 						-- Filter out internal fields and functions
@@ -436,7 +369,6 @@ local function queryModelState(player: Player, modelName: string?): (boolean, st
 
 		return true, output
 	else
-		-- Query specific model
 		local target = modelName:lower()
 		local modelClass = userModels[target] or serverModels[target]
 
@@ -447,7 +379,6 @@ local function queryModelState(player: Player, modelName: string?): (boolean, st
 		local isServerModel = serverModels[target] ~= nil
 		local scope = isServerModel and "SERVER" or "USER"
 
-		-- Get model instance
 		local modelInstance
 		if isServerModel then
 			modelInstance = modelClass.get("SERVER")
@@ -459,10 +390,8 @@ local function queryModelState(player: Player, modelName: string?): (boolean, st
 			return false, `Could not get instance of {modelName}`
 		end
 
-		-- Introspect properties
 		local properties = {}
 		for key, value in pairs(modelInstance) do
-			-- Filter out internal fields and functions
 			if not key:match("^_")
 				and key ~= "ownerId"
 				and key ~= "remoteEvent"
@@ -471,7 +400,6 @@ local function queryModelState(player: Player, modelName: string?): (boolean, st
 			end
 		end
 
-		-- Build output
 		local output = `=== {target:upper()} ({scope}) ===\n\n`
 
 		local sortedKeys = {}

@@ -12,10 +12,8 @@ export type AbstractController = typeof(setmetatable({} :: {
 function AbstractController.new(controllerName: string): AbstractController
 	local self = setmetatable({}, AbstractController)
 
-	-- Derive event name by removing "Controller" suffix
 	local eventName = controllerName:gsub("Controller$", "") .. "Intent"
 
-	-- Ensure Events folder exists in ReplicatedStorage
 	local eventsFolder = ReplicatedStorage:FindFirstChild("Events")
 	if not eventsFolder then
 		eventsFolder = Instance.new("Folder")
@@ -23,7 +21,6 @@ function AbstractController.new(controllerName: string): AbstractController
 		eventsFolder.Parent = ReplicatedStorage
 	end
 
-	-- Create RemoteEvent
 	local remoteEvent = eventsFolder:FindFirstChild(eventName)
 	if not remoteEvent then
 		remoteEvent = Instance.new("RemoteEvent")

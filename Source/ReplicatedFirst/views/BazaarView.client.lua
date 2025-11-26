@@ -25,11 +25,11 @@ local Players = game:GetService("Players")
 local localPlayer = Players.LocalPlayer
 
 -- Import shared constants and state events
-local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
-local StateEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StateEvents"))
+local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
+local StateEvents = require(ReplicatedStorage:WaitForChild("StateEvents"))
 
 -- Get the remote events
-local eventsFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
+local eventsFolder = ReplicatedStorage:WaitForChild("Events")
 local bazaarIntent = eventsFolder:WaitForChild("BazaarIntent") :: RemoteEvent
 local inventoryStateChanged = eventsFolder:WaitForChild(StateEvents.Inventory.EventName) :: RemoteEvent
 

@@ -12,7 +12,7 @@
 		-- Types can be used for validation and documentation
 
 	Usage in Views (client):
-		local StateEvents = require(ReplicatedStorage.Shared.StateEvents)
+		local StateEvents = require(ReplicatedStorage.StateEvents)
 
 		-- Use event name constants instead of magic strings
 		local inventoryStateChanged = eventsFolder:WaitForChild(StateEvents.Inventory.EventName)

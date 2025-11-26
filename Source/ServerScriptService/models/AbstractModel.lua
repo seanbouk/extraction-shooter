@@ -34,13 +34,12 @@ function AbstractModel.new(modelName: string, ownerId: string, scope: ModelScope
 		-- Derive event name by removing "Model" suffix and adding "StateChanged"
 		local eventName = modelName:gsub("Model$", "") .. "StateChanged"
 
-		-- Ensure Shared/Events folder exists in ReplicatedStorage
-		local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
-		local eventsFolder = sharedFolder:FindFirstChild("Events")
+		-- Ensure Events folder exists in ReplicatedStorage
+		local eventsFolder = ReplicatedStorage:FindFirstChild("Events")
 		if not eventsFolder then
 			eventsFolder = Instance.new("Folder")
 			eventsFolder.Name = "Events"
-			eventsFolder.Parent = sharedFolder
+			eventsFolder.Parent = ReplicatedStorage
 		end
 
 		-- Create or get RemoteEvent

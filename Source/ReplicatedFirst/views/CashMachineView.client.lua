@@ -21,10 +21,10 @@ local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Import shared constants
-local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
 
 -- Get the remote event for cash machine intents
-local eventsFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
+local eventsFolder = ReplicatedStorage:WaitForChild("Events")
 local cashMachineIntent = eventsFolder:WaitForChild("CashMachineIntent") :: RemoteEvent
 
 -- Constants

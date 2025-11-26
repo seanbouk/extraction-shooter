@@ -2,27 +2,17 @@
   "name": "RobloxTemplate",
   "tree": {
     "$className": "DataModel",
-    "$ignoreUnknownInstances": true,
-    "ServerScriptService": {
-      "$className": "ServerScriptService",
-      "Server": {
-        "$path": "src/server"
-      }
-    },
-    "StarterPlayer": {
-      "$className": "StarterPlayer",
-      "StarterPlayerScripts": {
-        "$className": "StarterPlayerScripts",
-        "Client": {
-          "$path": "src/client"
-        }
-      }
+    "ReplicatedFirst": {
+      "$path": "Source/ReplicatedFirst",
+      "$ignoreUnknownInstances": true
     },
     "ReplicatedStorage": {
-      "$className": "ReplicatedStorage",
-      "Shared": {
-        "$path": "src/shared"
-      }
+      "$path": "Source/ReplicatedStorage",
+      "$ignoreUnknownInstances": true
+    },
+    "ServerScriptService": {
+      "$path": "Source/ServerScriptService",
+      "$ignoreUnknownInstances": true
     }
   }
 }

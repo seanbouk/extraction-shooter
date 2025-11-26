@@ -18,7 +18,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextChatService = game:GetService("TextChatService")
 
-local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
 
 local SlashCommandService = {}
 
@@ -650,7 +650,7 @@ function SlashCommandService:init(): ()
 	end
 
 	-- Create RemoteEvent for commands (follows Intent pattern)
-	local eventsFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
+	local eventsFolder = ReplicatedStorage:WaitForChild("Events")
 	commandRemote = Instance.new("RemoteEvent")
 	commandRemote.Name = "SlashCommandIntent"
 	commandRemote.Parent = eventsFolder

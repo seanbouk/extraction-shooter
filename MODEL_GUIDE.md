@@ -706,7 +706,7 @@ export type InventoryData = {
 
 3. **Views observe state with type safety:**
    ```lua
-   local StateEvents = require(ReplicatedStorage.Shared.StateEvents)
+   local StateEvents = require(ReplicatedStorage.StateEvents)
    local inventoryStateChanged = eventsFolder:WaitForChild(StateEvents.Inventory.EventName)
 
    inventoryStateChanged.OnClientEvent:Connect(function(data: StateEvents.InventoryData)

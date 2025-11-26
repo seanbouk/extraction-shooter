@@ -41,7 +41,7 @@ end
 ]]
 function SlashCommandClient.new(): ()
 	-- Wait for RemoteEvent (follows Intent pattern)
-	local eventsFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
+	local eventsFolder = ReplicatedStorage:WaitForChild("Events")
 	commandRemote = eventsFolder:WaitForChild("SlashCommandIntent") :: RemoteEvent
 
 	-- Listen for TextChatCommands being triggered

@@ -153,9 +153,9 @@ This template enforces strict separation between code and Studio-created content
 
 All code must be managed through Rojo and stored in the repository:
 
-- `src/server/` - Server-side scripts (syncs to ServerScriptService)
-- `src/client/` - Client-side scripts (syncs to StarterPlayer > StarterPlayerScripts)
-- `src/shared/` - Shared modules (syncs to ReplicatedStorage)
+- `Source/ServerScriptService/` - Server-side scripts (syncs to ServerScriptService)
+- `Source/ReplicatedFirst/` - Client-side scripts (syncs to ReplicatedFirst)
+- `Source/ReplicatedStorage/` - Shared modules (syncs to ReplicatedStorage)
 
 ### Studio-Only Content
 
@@ -534,7 +534,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local AbstractController = require(script.Parent.AbstractController)
 local InventoryModel = require(script.Parent.Parent.models.user.InventoryModel)
 local WeaponShopModel = require(script.Parent.Parent.models.server.WeaponShopModel)
-local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
+local IntentActions = require(ReplicatedStorage.IntentActions)
 
 local WeaponShopController = {}
 WeaponShopController.__index = WeaponShopController
@@ -617,8 +617,8 @@ return WeaponShopController
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
-local StateEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StateEvents"))
+local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
+local StateEvents = require(ReplicatedStorage:WaitForChild("StateEvents"))
 
 local TAG = "WeaponShop"
 
@@ -999,7 +999,7 @@ src/
 1. **WaitForChild on wrong path**
    - Check: Print the parent to verify it exists first
    - Fix: Verify exact path in Explorer
-   - Example: `ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions")`
+   - Example: `ReplicatedStorage:WaitForChild("IntentActions")`
 
 2. **Model.get() returning nil**
    - Check: Is the model initialized?

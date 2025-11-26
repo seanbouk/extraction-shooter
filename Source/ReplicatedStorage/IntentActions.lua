@@ -8,11 +8,11 @@
 	better IDE support.
 
 	Usage in Views (client):
-		local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
+		local IntentActions = require(ReplicatedStorage.IntentActions)
 		remoteEvent:FireServer(IntentActions.Shrine.Donate, amount)
 
 	Usage in Controllers (server):
-		local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
+		local IntentActions = require(ReplicatedStorage.IntentActions)
 		local ACTIONS = {
 			[IntentActions.Shrine.Donate] = handleDonate,
 		}

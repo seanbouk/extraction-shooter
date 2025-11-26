@@ -4,7 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AbstractController = require(script.Parent.AbstractController)
 local InventoryModel = require(script.Parent.Parent.models.user.InventoryModel)
-local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
+local IntentActions = require(ReplicatedStorage.IntentActions)
 
 local CashMachineController = {}
 CashMachineController.__index = CashMachineController

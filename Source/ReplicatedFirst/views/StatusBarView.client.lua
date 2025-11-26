@@ -8,7 +8,7 @@
 	updates the GoldLabel and TreasureLabel text when inventory changes are received.
 
 	Expected hierarchy:
-	StarterGui
+	PlayerGui
 	└── StatusBar [ScreenGui, Tagged "StatusBar"]
 	    └── Frame
 	        ├── UIListLayout
@@ -23,10 +23,10 @@ local Players = game:GetService("Players")
 local localPlayer = Players.LocalPlayer
 
 -- Import shared state events
-local StateEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StateEvents"))
+local StateEvents = require(ReplicatedStorage:WaitForChild("StateEvents"))
 
 -- Wait for the remote event for inventory state changes
-local eventsFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
+local eventsFolder = ReplicatedStorage:WaitForChild("Events")
 local inventoryStateChanged = eventsFolder:WaitForChild(StateEvents.Inventory.EventName) :: RemoteEvent
 
 -- Constants

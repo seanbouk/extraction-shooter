@@ -14,7 +14,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ChatMessageClient = {}
 
 function ChatMessageClient.new(): ()
-	local eventsFolder = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
+	local eventsFolder = ReplicatedStorage:WaitForChild("Events")
 	local messageRemote = eventsFolder:WaitForChild("SlashCommandStateChanged") :: RemoteEvent
 
 	messageRemote.OnClientEvent:Connect(function(message: string)

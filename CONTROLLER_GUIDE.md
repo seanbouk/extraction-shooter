@@ -53,7 +53,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AbstractController = require(script.Parent.AbstractController)
 local YourModel = require(script.Parent.Parent.models.user.YourModel) -- or .server.YourModel
-local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
+local IntentActions = require(ReplicatedStorage.IntentActions)
 
 local YourController = {}
 YourController.__index = YourController
@@ -199,11 +199,10 @@ From a LocalScript (View), fire intents to your controller using IntentActions c
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Import shared constants
-local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
 
 -- Wait for the remote event
-local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
-local eventsFolder = sharedFolder:WaitForChild("Events")
+local eventsFolder = ReplicatedStorage:WaitForChild("Events")
 local yourIntent = eventsFolder:WaitForChild("YourIntent") :: RemoteEvent
 
 -- Fire an intent with typed constant (not magic string)
@@ -377,7 +376,7 @@ For controllers handling multiple related actions:
 
 ```lua
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
+local IntentActions = require(ReplicatedStorage.IntentActions)
 
 function InventoryController.new(): InventoryController
 	local self = AbstractController.new("InventoryController") :: any
@@ -414,7 +413,7 @@ For better scalability and maintainability, use named functions with a lookup ta
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local AbstractController = require(script.Parent.AbstractController)
 local InventoryModel = require(script.Parent.Parent.models.user.InventoryModel)
-local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
+local IntentActions = require(ReplicatedStorage.IntentActions)
 
 -- Define action functions at module level
 local function withdraw(inventory: any, amount: number, player: Player)
@@ -514,7 +513,7 @@ local controller = YourController.new()
 
 -- Verify RemoteEvent was created
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local events = ReplicatedStorage:WaitForChild("Shared"):WaitForChild("Events")
+local events = ReplicatedStorage:WaitForChild("Events")
 local intent = events:FindFirstChild("YourIntent")
 
 if intent then
@@ -533,8 +532,7 @@ Create a LocalScript in `src/client/` to test the full flow:
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
-local eventsFolder = sharedFolder:WaitForChild("Events")
+local eventsFolder = ReplicatedStorage:WaitForChild("Events")
 local yourIntent = eventsFolder:WaitForChild("YourIntent") :: RemoteEvent
 
 -- Test after delay
@@ -582,13 +580,13 @@ All intent action strings are centralized in `src/shared/IntentActions.lua`:
 
 **In Views (Client):**
 ```lua
-local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
 cashMachineIntent:FireServer(IntentActions.CashMachine.Withdraw, amount)
 ```
 
 **In Controllers (Server):**
 ```lua
-local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
+local IntentActions = require(ReplicatedStorage.IntentActions)
 
 -- Use exported types for strong typing
 local ACTIONS = {
@@ -711,7 +709,7 @@ return IntentActions
 **In Controller:**
 
 ```lua
-local IntentActions = require(ReplicatedStorage.Shared.IntentActions)
+local IntentActions = require(ReplicatedStorage.IntentActions)
 
 local function withdraw(inventory: any, amount: number, player: Player)
     inventory:addGold(amount)
@@ -741,7 +739,7 @@ end)
 **In View:**
 
 ```lua
-local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
 
 -- Type-safe constant usage
 remoteEvent:FireServer(IntentActions.CashMachine.Withdraw, 100)

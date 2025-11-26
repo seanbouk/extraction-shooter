@@ -15,13 +15,12 @@ function AbstractController.new(controllerName: string): AbstractController
 	-- Derive event name by removing "Controller" suffix
 	local eventName = controllerName:gsub("Controller$", "") .. "Intent"
 
-	-- Ensure Events folder exists in ReplicatedStorage/Shared
-	local sharedFolder = ReplicatedStorage:WaitForChild("Shared")
-	local eventsFolder = sharedFolder:FindFirstChild("Events")
+	-- Ensure Events folder exists in ReplicatedStorage
+	local eventsFolder = ReplicatedStorage:FindFirstChild("Events")
 	if not eventsFolder then
 		eventsFolder = Instance.new("Folder")
 		eventsFolder.Name = "Events"
-		eventsFolder.Parent = sharedFolder
+		eventsFolder.Parent = ReplicatedStorage
 	end
 
 	-- Create RemoteEvent

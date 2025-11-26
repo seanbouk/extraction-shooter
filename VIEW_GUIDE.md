@@ -124,7 +124,7 @@ local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Import shared constants
-local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
 
 -- Constants
 local TAG_NAME = "YourTag"
@@ -185,7 +185,7 @@ The `CashMachineView.client.lua` file demonstrates **Pattern B: Intent-Based wit
 ### Pattern Used:
 ```lua
 -- At the top of the file
-local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
 local cashMachineIntent = eventsFolder:WaitForChild("CashMachineIntent") :: RemoteEvent
 local WITHDRAW_AMOUNT = 50
 
@@ -382,8 +382,7 @@ type ModelData = {
 }
 
 -- Listen for state changes from server model
-local modelStateChanged = ReplicatedStorage:WaitForChild("Shared")
-	:WaitForChild("Events")
+local modelStateChanged = ReplicatedStorage:WaitForChild("Events")
 	:WaitForChild("YourModelStateChanged") :: RemoteEvent
 
 modelStateChanged.OnClientEvent:Connect(function(modelData: ModelData)
@@ -439,7 +438,7 @@ modelStateChanged:FireServer()
 All intent action strings are centralized in `src/shared/IntentActions.lua`:
 
 ```lua
-local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
 
 -- Use typed constants instead of magic strings
 cashMachineIntent:FireServer(IntentActions.CashMachine.Withdraw, amount)
@@ -452,7 +451,7 @@ shrineIntent:FireServer(IntentActions.Shrine.Donate)
 All state event names and data types are centralized in `src/shared/StateEvents.lua`:
 
 ```lua
-local StateEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StateEvents"))
+local StateEvents = require(ReplicatedStorage:WaitForChild("StateEvents"))
 
 -- Use event name constants instead of magic strings
 local inventoryStateChanged = eventsFolder:WaitForChild(StateEvents.Inventory.EventName)
@@ -494,7 +493,7 @@ Use StateEvents when:
 
 ```lua
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local StateEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StateEvents"))
+local StateEvents = require(ReplicatedStorage:WaitForChild("StateEvents"))
 ```
 
 **2. Get the RemoteEvent using event name constant**
@@ -533,7 +532,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Import StateEvents for type-safe state observation
-local StateEvents = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("StateEvents"))
+local StateEvents = require(ReplicatedStorage:WaitForChild("StateEvents"))
 
 local TAG = "StatusBar"
 local localPlayer = Players.LocalPlayer
@@ -803,7 +802,7 @@ cashMachineIntent:FireServer("InvalidAction", 50)
 If you want compile-time type safety in your views, you can create typed helper functions:
 
 ```lua
-local IntentActions = require(ReplicatedStorage:WaitForChild("Shared"):WaitForChild("IntentActions"))
+local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
 
 -- Define a typed helper function
 local function sendCashMachineIntent(action: IntentActions.CashMachineAction, amount: number)

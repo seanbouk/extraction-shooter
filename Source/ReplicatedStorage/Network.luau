@@ -4,10 +4,12 @@
 	Network - Central networking module using Bolt
 
 	This module provides:
-	- Auto-registration of Bolt ReliableEvents for controller intents
-	- Auto-registration of Bolt RemoteProperties for model state
+	- Auto-generation of Bolt ReliableEvents for controller intents
+	- Auto-generation of Bolt RemoteProperties for model state
 	- Type-safe action constants and state types
 	- Single source of truth for all networking (replaces IntentActions + StateEvents)
+
+	To add new controllers or models, simply add them to NetworkConfig below.
 
 	Usage in Controllers:
 		local Network = require(ReplicatedStorage.Network)
@@ -28,32 +30,54 @@
 
 local Bolt = require(script.Parent.Bolt)
 
+-- Network Configuration: Single source of truth for all controllers and state
+local NetworkConfig = {
+	Controllers = {
+		CashMachine = { "Withdraw", "Deposit" },
+		Bazaar = { "BuyTreasure" },
+		Shrine = { "Donate" },
+		SlashCommand = {},  -- No actions, just the intent
+	},
+
+	States = {
+		Inventory = {
+			ownerId = "",
+			gold = 0,
+			treasure = 0,
+		},
+		Shrine = {
+			ownerId = "",
+			treasure = 0,
+			userId = "",
+		},
+		SlashCommand = {
+			ownerId = "",
+			message = "",
+		},
+	},
+}
+
 -- Network module definition
 local Network = {
-	Intent = {},  -- Bolt.ReliableEvent instances (auto-populated by controllers)
-	State = {},   -- Bolt.RemoteProperty instances (eagerly created below)
+	Intent = {},  -- Bolt.ReliableEvent instances (auto-generated below)
+	State = {},   -- Bolt.RemoteProperty instances (auto-generated below)
+	Actions = {}, -- Action constants (auto-generated below)
 }
 
--- Action Constants (replaces IntentActions.lua)
-Network.Actions = {
-	CashMachine = {
-		Withdraw = "Withdraw",
-		Deposit = "Deposit",
-	},
-	Bazaar = {
-		BuyTreasure = "BuyTreasure",
-	},
-	Shrine = {
-		Donate = "Donate",
-	},
-}
+-- Auto-generate Actions from NetworkConfig.Controllers
+for controllerName, actions in NetworkConfig.Controllers do
+	Network.Actions[controllerName] = {}
+	for _, actionName in actions do
+		Network.Actions[controllerName][actionName] = actionName
+	end
+end
 
--- Action Type Exports
+-- Action Type Exports (manually defined for type safety)
 export type CashMachineAction = "Withdraw" | "Deposit"
 export type BazaarAction = "BuyTreasure"
 export type ShrineAction = "Donate"
 
--- State Type Exports (replaces StateEvents.lua)
+-- State Type Exports (manually defined for type safety)
 export type InventoryState = {
 	ownerId: string,
 	gold: number,
@@ -66,32 +90,18 @@ export type ShrineState = {
 	userId: string,
 }
 
--- Eager Intent Registration: Create ReliableEvents immediately at module load
+-- Auto-generate Intent Registration: Create ReliableEvents from NetworkConfig.Controllers
 -- This ensures views can access Network.Intent.* before controllers initialize
-Network.Intent.CashMachine = Bolt.ReliableEvent("CashMachineIntent")
-Network.Intent.Bazaar = Bolt.ReliableEvent("BazaarIntent")
-Network.Intent.Shrine = Bolt.ReliableEvent("ShrineIntent")
-Network.Intent.SlashCommand = Bolt.ReliableEvent("SlashCommandIntent")
+for controllerName in NetworkConfig.Controllers do
+	Network.Intent[controllerName] = Bolt.ReliableEvent(controllerName .. "Intent")
+end
 
--- Eager State Registration: Create RemoteProperties immediately at module load
+-- Auto-generate State Registration: Create RemoteProperties from NetworkConfig.States
 -- This ensures views can access Network.State.* before models initialize
--- Defaults must match model structure for views that observe before models sync
-Network.State.Inventory = Bolt.RemoteProperty("InventoryState", {
-	ownerId = "",
-	gold = 0,
-	treasure = 0,
-})
-
-Network.State.Shrine = Bolt.RemoteProperty("ShrineState", {
-	ownerId = "",
-	treasure = 0,
-	userId = "",
-})
-
-Network.State.SlashCommand = Bolt.RemoteProperty("SlashCommandState", {
-	ownerId = "",
-	message = "",
-})
+-- Defaults are taken from NetworkConfig for views that observe before models sync
+for stateName, defaultValue in NetworkConfig.States do
+	Network.State[stateName] = Bolt.RemoteProperty(stateName .. "State", defaultValue)
+end
 
 -- Auto-registration Functions
 
@@ -108,7 +118,7 @@ function Network.registerIntent(controllerName: string): any
 		return Network.Intent[controllerName]
 	end
 
-	error(`[Network] Unknown controller intent: {controllerName}. Add it to Network.Intent at module load.`)
+	error(`[Network] Unknown controller intent: {controllerName}. Add it to NetworkConfig.Controllers.`)
 end
 
 --[[
@@ -124,7 +134,7 @@ function Network.registerState(modelName: string): any
 		return Network.State[modelName]
 	end
 
-	error(`[Network] Unknown model state: {modelName}. Add it to Network.State at module load.`)
+	error(`[Network] Unknown model state: {modelName}. Add it to NetworkConfig.States.`)
 end
 
 return Network

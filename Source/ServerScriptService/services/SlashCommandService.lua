@@ -212,8 +212,8 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 		end
 
 		helpText ..= "SPECIAL COMMANDS:\n"
-		helpText ..= "  /commands [command] - Show this help or details for a command\n"
-		helpText ..= "  /state [model] - Show model state (all models or specific)\n"
+		helpText ..= "  /commands [command] - Show all commands or details for specific command\n"
+		helpText ..= "  /state [model] - Show state for all models or specific model\n"
 		helpText ..= "\n"
 		helpText ..= "Usage: /<command> <method> [args...] - Execute a command"
 

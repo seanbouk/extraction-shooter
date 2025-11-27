@@ -118,6 +118,17 @@ Slash commands provide a quick way for high-rank users to execute model methods 
 
 **[📖 See the Slash Commands Guide](SLASH_COMMANDS.md)** for complete documentation on using and customizing slash commands.
 
+### Bolt Networking Library
+
+Bolt is a high-performance networking library included with this template that provides efficient alternatives to RemoteEvents and RemoteFunctions:
+
+- **Binary serialization**: Reduces bandwidth usage through compact data encoding
+- **Automatic batching**: Groups multiple messages into single network packets
+- **Type-safe API**: Strongly typed events, properties, and functions
+- **Optional optimization**: Works with default serialization or custom serializers
+
+**[📖 See the Bolt API Reference](BOLT_API.md)** for complete documentation on using Bolt for networking in your game.
+
 ## Key Principles
 
 ### 1. Intents, Not Commands

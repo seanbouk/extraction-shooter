@@ -115,30 +115,30 @@ The group ID is **automatically detected** when the server starts - no configura
 
 ## Discovering Available Commands
 
-### Using /help Command
+### Using /commands Command
 
-The `/help` command provides automatic discovery of all available slash commands:
+The `/commands` command provides automatic discovery of all available slash commands:
 
 **List all commands:**
 ```
-/help
+/commands
 ```
 
 Shows all models (User/Server scoped) and controllers with their command names.
 
 **View specific command details:**
 ```
-/help modelname
-/help controllername
+/commands modelname
+/commands controllername
 ```
 
 Shows all available methods (for models) or actions (for controllers) with usage examples.
 
 **Examples:**
 ```
-/help                      → Lists all available commands
-/help inventorymodel       → Shows methods: addGold, spendGold, addTreasure, spendTreasure
-/help bazaarcontroller     → Shows actions: BuyTreasure
+/commands                      → Lists all available commands
+/commands inventorymodel       → Shows methods: addGold, spendGold, addTreasure, spendTreasure
+/commands bazaarcontroller     → Shows actions: BuyTreasure
 ```
 
 The help system automatically:
@@ -173,7 +173,7 @@ Shows the current state of a specific model with all its properties.
 ```
 
 The state query system automatically:
-- **Introspects model properties** via runtime inspection (same pattern as `/help`)
+- **Introspects model properties** via runtime inspection (same pattern as `/commands`)
 - **Filters out internal fields** (ownerId, remoteEvent, private fields, functions)
 - **Shows only game-relevant data** for clean, readable output
 - **Works with all models** - zero instrumentation required
@@ -369,7 +369,7 @@ CONTROLLERS:
   /bazaarcontroller
   /shrinecontroller
 
-Usage: /help <command> - Show methods/actions for a command
+Usage: /commands [command] - Show methods/actions for a command
 ```
 
 ### Console Logging
@@ -389,7 +389,7 @@ The slash command system also includes server-side logging for monitoring:
 ```
 [SlashCommandService] Game owned by group 12345678. Rank 200+ required.
 [SlashCommand] SUCCESS - PlayerName: Executed InventoryModel:addGold
-[SlashCommand] PlayerName used /help inventorymodel
+[SlashCommand] PlayerName used /commands inventorymodel
 ```
 
 ### Common Issues

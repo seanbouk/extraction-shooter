@@ -36,7 +36,7 @@ function SlashCommandClient.new(): ()
 	local textCommands = TextChatService:FindFirstChild("TextChatCommands")
 	if textCommands then
 		for _, command in textCommands:GetChildren() do
-			if command:IsA("TextChatCommand") then
+			if command:IsA("TextChatCommand") and command.Name:match("^custom_") then
 				command.Triggered:Connect(function(textSource, unfilteredText)
 					sendCommand(unfilteredText)
 				end)
@@ -44,7 +44,7 @@ function SlashCommandClient.new(): ()
 		end
 
 		textCommands.ChildAdded:Connect(function(command)
-			if command:IsA("TextChatCommand") then
+			if command:IsA("TextChatCommand") and command.Name:match("^custom_") then
 				command.Triggered:Connect(function(textSource, unfilteredText)
 					sendCommand(unfilteredText)
 				end)

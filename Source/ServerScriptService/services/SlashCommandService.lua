@@ -23,6 +23,10 @@ local Network = require(ReplicatedStorage.Network)
 local SlashCommandService = {}
 
 local MIN_RANK = 200
+-- TEMPORARY WORKAROUND: Bolt uses U8 for string length encoding (255 byte max).
+-- If Bolt is updated to use U16 or larger, this limit can be increased or removed.
+-- See Bolt.luau line 554: buffer.writeu8(self.Buffer, self.Cursor, stringLength)
+local MAX_MESSAGE_LENGTH = 250 -- Safe limit under Bolt's 255-byte U8 string length maximum
 
 local userModels: { [string]: any } = {}
 local serverModels: { [string]: any } = {}
@@ -33,10 +37,41 @@ local messageRemote: RemoteEvent = nil
 local groupId: number? = nil
 
 local function sendChatMessage(player: Player, message: string): ()
-	if messageRemote then
-		Network.State.SlashCommand:SetFor(player, { message = message })
-	else
+	if not messageRemote then
 		warn("[SlashCommandService] Cannot send chat message - messageRemote not initialized")
+		return
+	end
+
+	-- If message fits in one chunk, send it directly
+	if #message <= MAX_MESSAGE_LENGTH then
+		Network.State.SlashCommand:SetFor(player, { message = message })
+		return
+	end
+
+	-- Split long messages by line breaks to avoid breaking mid-line
+	local lines = string.split(message, "\n")
+	local currentChunk = ""
+
+	for _, line in lines do
+		local testChunk = currentChunk == "" and line or currentChunk .. "\n" .. line
+
+		if #testChunk > MAX_MESSAGE_LENGTH then
+			-- Send current chunk if it's not empty
+			if currentChunk ~= "" then
+				Network.State.SlashCommand:SetFor(player, { message = currentChunk })
+				task.wait(0.05) -- Small delay between messages
+			end
+
+			-- Start new chunk with current line
+			currentChunk = line
+		else
+			currentChunk = testChunk
+		end
+	end
+
+	-- Send remaining chunk
+	if currentChunk ~= "" then
+		Network.State.SlashCommand:SetFor(player, { message = currentChunk })
 	end
 end
 
@@ -177,7 +212,7 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 		end
 
 		helpText ..= "SPECIAL COMMANDS:\n"
-		helpText ..= "  /help [command] - Show this help or details for a command\n"
+		helpText ..= "  /commands [command] - Show this help or details for a command\n"
 		helpText ..= "  /state [model] - Show model state (all models or specific)\n"
 		helpText ..= "\n"
 		helpText ..= "Usage: /<command> <method> [args...] - Execute a command"
@@ -441,12 +476,12 @@ local function handleCommand(player: Player, commandString: string): ()
 
 	local targetName = parts[1]
 
-	-- Handle /help command specially
-	if targetName:lower() == "help" then
+	-- Handle /commands command specially (renamed from /help to avoid conflict with Roblox built-in)
+	if targetName:lower() == "commands" then
 		local helpTarget = parts[2] -- May be nil
 		local success, message = showHelp(player, helpTarget)
 		sendChatMessage(player, message)
-		print(`[SlashCommand] {player.Name} used /help` .. (helpTarget and ` {helpTarget}` or ""))
+		print(`[SlashCommand] {player.Name} used /commands` .. (helpTarget and ` {helpTarget}` or ""))
 		return
 	end
 
@@ -530,22 +565,22 @@ end
 function SlashCommandService:createTextChatCommands(): ()
 	local textCommands = TextChatService:WaitForChild("TextChatCommands")
 
-	-- Create /help command
+	-- Create /commands command (renamed from /help to avoid conflict with Roblox built-in)
 	local helpCommand = Instance.new("TextChatCommand")
-	helpCommand.Name = "help"
-	helpCommand.PrimaryAlias = "/help"
+	helpCommand.Name = "custom_commands"
+	helpCommand.PrimaryAlias = "/commands"
 	helpCommand.Parent = textCommands
 
 	-- Create /state command
 	local stateCommand = Instance.new("TextChatCommand")
-	stateCommand.Name = "state"
+	stateCommand.Name = "custom_state"
 	stateCommand.PrimaryAlias = "/state"
 	stateCommand.Parent = textCommands
 
 	-- Create a command for each user-scoped model
 	for modelName, _ in userModels do
 		local command = Instance.new("TextChatCommand")
-		command.Name = `model_{modelName}`
+		command.Name = `custom_model_{modelName}`
 		command.PrimaryAlias = `/{modelName:lower()}`
 		command.Parent = textCommands
 	end
@@ -553,7 +588,7 @@ function SlashCommandService:createTextChatCommands(): ()
 	-- Create a command for each server-scoped model
 	for modelName, _ in serverModels do
 		local command = Instance.new("TextChatCommand")
-		command.Name = `servermodel_{modelName}`
+		command.Name = `custom_servermodel_{modelName}`
 		command.PrimaryAlias = `/{modelName:lower()}`
 		command.Parent = textCommands
 	end
@@ -561,7 +596,7 @@ function SlashCommandService:createTextChatCommands(): ()
 	-- Create a command for each controller
 	for controllerName, _ in controllers do
 		local command = Instance.new("TextChatCommand")
-		command.Name = `controller_{controllerName}`
+		command.Name = `custom_controller_{controllerName}`
 		command.PrimaryAlias = `/{controllerName:lower()}`
 		command.Parent = textCommands
 	end

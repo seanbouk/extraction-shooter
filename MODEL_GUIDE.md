@@ -236,8 +236,9 @@ end
 
 **Important**:
 - Pass the model name (e.g., `"YourModel"`) as the first parameter to `AbstractModel.new()`
-- This registers a Bolt RemoteProperty via `Network.registerState()` for state synchronization
-- State properties are accessed in Network.luau as `Network.State.Your` (model name without "Model" suffix)
+- This retrieves a Bolt RemoteProperty via `Network.registerState()` for state synchronization
+- **Prerequisite:** Add an entry to NetworkConfig.States in Network.luau first (NetworkBuilder auto-generates the RemoteProperty)
+- State properties are accessed as `Network.State.Your` (model name without "Model" suffix)
 - Pass `ownerId` as the second parameter
 - Pass the scope (`"User"` or `"Server"`) as the third parameter
 - Cast `AbstractModel.new()` to `any` to allow metatable manipulation without type errors
@@ -246,7 +247,16 @@ end
 Define your model's state data type in Network.luau for type-safe observers:
 
 ```lua
--- In Network.luau
+-- In Network.luau NetworkConfig
+States = {
+    Your = {
+        ownerId = "",
+        property1 = 0,
+        property2 = "",
+    },
+},
+
+-- Add exported type
 export type YourModelData = {
     ownerId: string,
     property1: number,

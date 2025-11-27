@@ -629,6 +629,7 @@ Network.Actions is part of the centralized Network module (`src/ReplicatedStorag
 - **Intent events** - Bolt ReliableEvents for client-server communication
 - **State synchronization** - Bolt RemoteProperties for model state
 - **Complete networking** - All game networking in one module
+- **NetworkBuilder** - Engine module that auto-generates networking infrastructure from NetworkConfig
 
 ### When to Add New Actions
 
@@ -641,29 +642,33 @@ Add new actions to Network.Actions when:
 
 **1. Open `src/ReplicatedStorage/Network.luau`**
 
-**2. Add Bolt ReliableEvent registration:**
+**2. Add entry to NetworkConfig.Controllers:**
 
-Register the intent event eagerly at module load:
+NetworkBuilder will automatically generate the Intent event and Actions table:
 
 ```lua
--- Eager Intent Registration
-Network.Intent.YourFeature = Bolt.ReliableEvent("YourFeatureIntent")
+-- In the NetworkConfig table
+local NetworkConfig = {
+    Controllers = {
+        YourFeature = { "ActionName", "AnotherAction" },
+        -- ... other controllers
+    },
+}
 ```
 
-**3. Add action constants:**
-
-Group related actions by feature in the Actions table:
+**3. Add exported action type (optional, for type safety):**
 
 ```lua
-Network.Actions.YourFeature = {
-    ActionName = "ActionName",
-    AnotherAction = "AnotherAction",
-}
+export type YourFeatureAction = "ActionName" | "AnotherAction"
 ```
 
 **4. That's it!**
 
-The Network module is already returned - both the intent event and action constants are now available throughout your codebase.
+NetworkBuilder automatically generates:
+- `Network.Intent.YourFeature` - Bolt ReliableEvent for client-server communication
+- `Network.Actions.YourFeature` - Action constants table for type-safe validation
+
+Both are immediately available throughout your codebase.
 
 ### Action Naming Conventions
 

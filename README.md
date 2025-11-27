@@ -281,7 +281,8 @@ Always start in this order:
    - Example: Tag a ScreenGui with "InventoryUI"
 
 5. **Define Network Events** (`Network.luau`)
-   - Bolt events are eagerly registered at module load
+   - Add entries to NetworkConfig for controllers and states
+   - NetworkBuilder automatically generates Bolt events at module load
    - Network.Intent.* - Bolt ReliableEvents for user actions
    - Network.State.* - Bolt RemoteProperties for model state
    - Network.Actions.* - Action constants for type-safe validation
@@ -301,7 +302,7 @@ These checklists provide step-by-step guidance for adding new components to your
 7. ✓ **Implement `.remove()`** method using AbstractModel.removeInstance()
 8. ✓ **Add business logic methods** that modify properties and call `self:syncState()`
 9. ✓ **Register state in Network.luau**:
-   - Add Bolt RemoteProperty registration (e.g., `Network.State.YourModel = Bolt.RemoteProperty(defaultState)`)
+   - Add entry to NetworkConfig.States with default values (NetworkBuilder auto-generates Bolt RemoteProperty)
    - Add exported data type (e.g., `export type YourModelData = { ownerId: string, ... }`)
 10. ✓ **Test with ModelRunner** - Models are auto-discovered by PersistenceService
 
@@ -311,8 +312,8 @@ These checklists provide step-by-step guidance for adding new components to your
 
 1. ✓ **Decide what user intents** this controller will handle (e.g., "Purchase", "Equip", "Donate")
 2. ✓ **Add action constants to Network.luau** FIRST:
-   - Add feature group to Network.Actions (e.g., `YourFeature = { Action1 = "Action1", Action2 = "Action2" }`)
-   - Add Bolt ReliableEvent registration (e.g., `Network.Intent.YourFeature = Bolt.ReliableEvent("YourFeatureIntent")`)
+   - Add entry to NetworkConfig.Controllers with action list (NetworkBuilder auto-generates Intent and Actions)
+   - Example: `YourFeature = { "Action1", "Action2" }` in NetworkConfig.Controllers
 3. ✓ **Create controller file** in `src/server/controllers/`
 4. ✓ **Extend AbstractController** with proper inheritance pattern
 5. ✓ **Define action handler functions** (if using lookup table pattern)
@@ -348,15 +349,16 @@ These checklists provide step-by-step guidance for adding new components to your
 **When to update:** You need a new user action (button click, prompt trigger, purchase intent, etc.)
 
 1. ✓ **Open `Source/ReplicatedStorage/Network.luau`**
-2. ✓ **Register Bolt ReliableEvent** (if new feature):
+2. ✓ **Add entry to NetworkConfig.Controllers** (NetworkBuilder auto-generates Intent and Actions):
    ```lua
-   Network.Intent.YourFeature = Bolt.ReliableEvent("YourFeatureIntent")
-   ```
-3. ✓ **Add action constants** in Network.Actions:
-   ```lua
-   YourFeature = {
-       ActionName = "ActionName",
+   -- In NetworkConfig table
+   Controllers = {
+       YourFeature = { "ActionName", "AnotherAction" },
    },
+   ```
+3. ✓ **Add exported action type** (optional, for type safety):
+   ```lua
+   export type YourFeatureAction = "ActionName" | "AnotherAction"
    ```
 4. ✓ **Update controller** to use new action in ACTIONS table and dispatchAction call
 5. ✓ **Update view** to use Network.Intent.YourFeature and Network.Actions constants
@@ -372,13 +374,16 @@ These checklists provide step-by-step guidance for adding new components to your
 **When to update:** You create a new model that syncs state to clients
 
 1. ✓ **Open `Source/ReplicatedStorage/Network.luau`**
-2. ✓ **Register Bolt RemoteProperty**:
+2. ✓ **Add entry to NetworkConfig.States** with default values (NetworkBuilder auto-generates Bolt RemoteProperty):
    ```lua
-   Network.State.YourModel = Bolt.RemoteProperty({
-       ownerId = "",
-       property1 = defaultValue,
-       property2 = defaultValue,
-   })
+   -- In NetworkConfig table
+   States = {
+       YourModel = {
+           ownerId = "",
+           property1 = defaultValue,
+           property2 = defaultValue,
+       },
+   },
    ```
 3. ✓ **Add exported data type** matching model properties (optional, for type safety):
    ```lua

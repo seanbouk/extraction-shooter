@@ -556,9 +556,9 @@ inventoryStateChanged:FireServer()
 
 **Important:** Understanding when to filter by ownerId depends on the model's broadcast scope.
 
-#### User-Scoped Models (fire("owner"))
+#### User-Scoped Models (Automatic Filtering)
 
-Models that broadcast with `fire("owner")` already filter on the server:
+Models with User scope automatically filter on the server via Bolt:
 
 ```lua
 -- NO FILTERING NEEDED - server already sent only to this player
@@ -569,13 +569,13 @@ end)
 ```
 
 **Why no filtering?**
-- Server uses `FireClient(player, data)` for "owner" scope
-- Only the owning player receives the event
+- Bolt uses `SetFor(player, data)` for User-scoped models
+- Only the owning player receives the state update
 - No other players see this data
 
-#### Server-Scoped Models (fire("all"))
+#### Server-Scoped Models (Broadcast to All)
 
-Models that broadcast with `fire("all")` send to all players:
+Models with Server scope sync to all players via Bolt:
 
 ```lua
 -- FILTERING NEEDED - all players receive this

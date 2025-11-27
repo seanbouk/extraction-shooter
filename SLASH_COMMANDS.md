@@ -292,7 +292,7 @@ No special code is needed! Just create models following the normal MVC pattern:
 
 function InventoryModel:addGold(amount: number): ()
     self.gold += amount
-    self:fire("owner")  -- This broadcasts to client as normal
+    self:syncState()  -- This syncs to client as normal
 end
 ```
 
@@ -303,7 +303,7 @@ That's it! The `/inventorymodel addGold 100` command is now automatically availa
 **✅ DO:**
 - Create descriptive method names (they become command names)
 - Use type annotations for parameters (helps with debugging)
-- Follow normal model patterns with `fire()` for state updates
+- Follow normal model patterns with `syncState()` for state updates
 - Use commands for testing and debugging during development
 
 **❌ DON'T:**

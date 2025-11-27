@@ -144,7 +144,7 @@ end
 -- Add your model's methods here
 function YourModel:yourMethod(): ()
 	-- Implementation
-	self:fire("owner") -- User-scoped models typically broadcast to owner
+	self:syncState() -- User-scoped models automatically sync to owner
 end
 
 return YourModel
@@ -189,7 +189,7 @@ end
 -- Add your model's methods here
 function YourModel:yourMethod(): ()
 	-- Implementation
-	self:fire("all") -- Server-scoped models typically broadcast to all
+	self:syncState() -- Server-scoped models automatically sync to all
 end
 
 return YourModel
@@ -363,7 +363,7 @@ The `InventoryModel.lua` file in `src/server/models/user/` demonstrates a User-s
 - Properties: `gold: number`, `treasure: number`, `ownerId: string`
 - Custom method: `addGold(amount: number)` - broadcasts with `"owner"` scope
 - State broadcasting: Automatically creates `InventoryStateChanged` RemoteEvent
-- Inherits `fire()` from AbstractModel for debugging and client synchronization
+- Inherits `syncState()` from AbstractModel for state synchronization
 - Cleanup method: `remove(ownerId)` for player lifecycle management
 
 ### Usage in Production:
@@ -391,7 +391,7 @@ Server-scoped models are initialized once when the server starts:
 - `ModelRunner.server.lua` creates the server instance on startup
 - Controllers access the shared instance via `ShrineModel.get("SERVER")`
 - All players interact with the same model instance
-- State changes broadcast to all clients via `fire("all")`
+- State changes sync to all clients via `syncState()` (automatically broadcasts to all)
 - No cleanup on player leave (persists for server lifetime)
 
 ## File Locations
@@ -424,8 +424,8 @@ owner1:yourMethod()
 print("owner1 == owner2:", owner1 == owner2) -- Should be false
 
 -- Debug output
-owner1:fire()
-owner2:fire()
+owner1:syncState()
+owner2:syncState()
 
 -- Test cleanup
 YourModel.remove("owner1")
@@ -440,9 +440,9 @@ YourModel.remove("owner1")
 5. **Use per-owner registry pattern** for player-specific or entity-specific state
 6. **Use player.UserId as owner ID** for player-owned models: `tostring(player.UserId)`
 7. **Implement cleanup** in player lifecycle events (PlayerRemoving)
-8. **Always call `fire()` with explicit scope** - `"owner"` for private data, `"all"` for public data
-9. **Think about data visibility** - Does this state need to be visible to other players?
-10. **Use `fire()` for debugging** during development to inspect model state
+8. **Always call `syncState()` after state changes** - scope is automatically detected from model type
+9. **Think about data visibility** - User-scoped models sync only to owner, Server-scoped sync to all
+10. **Use `syncState()` for debugging** during development to inspect model state
 11. **Define clear types** for all properties and method parameters
 
 ## Common Patterns
@@ -671,7 +671,7 @@ return StateEvents
 **Include properties that:**
 - ✅ Views need to display (e.g., gold amount, treasure count)
 - ✅ Change over time (e.g., health, score, progress)
-- ✅ Are broadcast by the model (via `self:fire()`)
+- ✅ Are synced by the model (via `self:syncState()`)
 
 **Don't include:**
 - ❌ Internal model state that clients never see
@@ -704,7 +704,7 @@ export type InventoryData = {
    ```lua
    function InventoryModel:addGold(amount: number): ()
        self.gold += amount
-       self:fire("owner")  -- Broadcasts InventoryData to owner
+       self:syncState()  -- Syncs InventoryData to owner (auto-detected scope)
    end
    ```
 
@@ -737,7 +737,7 @@ export type ShrineData = {
 
 **Key difference for Server-scoped models:**
 - `ownerId` is always "SERVER" (not a player UserId)
-- Typically broadcast with `fire("all")` since data is shared
+- Automatically sync to all clients via `syncState()` since scope is "Server"
 - All clients receive the same state
 
 ### Common Patterns
@@ -757,7 +757,7 @@ export type PlayerQuestData = {
     isComplete: boolean,
 }
 
--- Model broadcasts with fire("owner") - only that player sees it
+-- Model syncs with syncState() - User-scoped so only owner sees it
 ```
 
 #### Server-Scoped Model (Public Data)
@@ -774,7 +774,7 @@ export type MatchTimerData = {
     matchState: string,
 }
 
--- Model broadcasts with fire("all") - all players see it
+-- Model syncs with syncState() - Server-scoped so all players see it
 ```
 
 ### Troubleshooting
@@ -790,9 +790,9 @@ export type MatchTimerData = {
 - Check: Do the properties match your model's actual properties?
 
 **Problem:** Wrong players receiving state
-- Check: Are you using correct scope in `fire()`? ("owner" vs "all")
-- Check: Is ownerId filtering applied correctly in view? (Usually not needed!)
-- Check: For user-scoped models, fire("owner") already filters to that player
+- Check: Is your model scope correct? (User vs Server in AbstractModel.new())
+- Check: Bolt handles filtering automatically - User-scoped sends only to owner
+- Check: Server-scoped models send to all players - this is expected behavior
 
 ### Benefits of Using StateEvents
 

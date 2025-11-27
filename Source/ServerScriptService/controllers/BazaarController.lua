@@ -23,10 +23,8 @@ local function buyTreasure(inventory: any, player: Player)
 	end
 end
 
-local BUY_TREASURE = "BuyTreasure"
-
 local ACTIONS = {
-	[BUY_TREASURE] = buyTreasure,
+	[Network.Actions.Bazaar.BuyTreasure] = buyTreasure,
 }
 
 function BazaarController:executeAction(player: Player, action: Network.BazaarAction)

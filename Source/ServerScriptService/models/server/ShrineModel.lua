@@ -12,11 +12,7 @@ export type ShrineModel = typeof(setmetatable({} :: {
 }, ShrineModel)) & AbstractModel.AbstractModel
 
 function ShrineModel.new(ownerId: string): ShrineModel
-	local self = AbstractModel.new("ShrineModel", ownerId, "Server", {
-		ownerId = "",
-		treasure = 0,
-		userId = "",
-	}) :: any
+	local self = AbstractModel.new("ShrineModel", ownerId, "Server") :: any
 	setmetatable(self, ShrineModel)
 
 	self.treasure = 0

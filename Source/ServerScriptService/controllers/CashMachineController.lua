@@ -20,12 +20,9 @@ local function deposit(inventory: any, amount: number, player: Player)
 	inventory:addGold(-amount)
 end
 
-local WITHDRAW = "Withdraw"
-local DEPOSIT = "Deposit"
-
 local ACTIONS = {
-	[WITHDRAW] = withdraw,
-	[DEPOSIT] = deposit,
+	[Network.Actions.CashMachine.Withdraw] = withdraw,
+	[Network.Actions.CashMachine.Deposit] = deposit,
 }
 
 function CashMachineController:executeAction(player: Player, action: Network.CashMachineAction, amount: number)

@@ -23,10 +23,8 @@ local function donate(inventory: any, shrine: any, player: Player)
 	end
 end
 
-local DONATE = "Donate"
-
 local ACTIONS = {
-	[DONATE] = donate,
+	[Network.Actions.Shrine.Donate] = donate,
 }
 
 function ShrineController:executeAction(player: Player, action: Network.ShrineAction)

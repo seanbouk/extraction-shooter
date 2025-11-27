@@ -75,6 +75,7 @@ Network.Intent.SlashCommand = Bolt.ReliableEvent("SlashCommandIntent")
 
 -- Eager State Registration: Create RemoteProperties immediately at module load
 -- This ensures views can access Network.State.* before models initialize
+-- Defaults must match model structure for views that observe before models sync
 Network.State.Inventory = Bolt.RemoteProperty("InventoryState", {
 	ownerId = "",
 	gold = 0,
@@ -88,6 +89,7 @@ Network.State.Shrine = Bolt.RemoteProperty("ShrineState", {
 })
 
 Network.State.SlashCommand = Bolt.RemoteProperty("SlashCommandState", {
+	ownerId = "",
 	message = "",
 })
 
@@ -115,10 +117,9 @@ end
 	Note: Properties are eagerly created at module load, this just returns the existing one
 
 	@param modelName - Name of the model (e.g., "Inventory")
-	@param defaultState - Unused (kept for API compatibility)
 	@return Bolt.RemoteProperty for this model
 ]]
-function Network.registerState(modelName: string, defaultState: any): any
+function Network.registerState(modelName: string): any
 	if Network.State[modelName] then
 		return Network.State[modelName]
 	end

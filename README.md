@@ -388,7 +388,7 @@ These checklists provide step-by-step guidance for adding new components to your
        property2: type,
    }
    ```
-4. ✓ **Use in model** - Call `Network.registerState("YourModel", defaultState)` in AbstractModel.new()
+4. ✓ **Use in model** - Call `Network.registerState("YourModel")` in AbstractModel.new()
 5. ✓ **Update views** to use Network.State.YourModel:Observe() when observing state
 
 **What to include in data type:**

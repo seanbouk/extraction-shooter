@@ -12,11 +12,7 @@ export type InventoryModel = typeof(setmetatable({} :: {
 }, InventoryModel)) & AbstractModel.AbstractModel
 
 function InventoryModel.new(ownerId: string): InventoryModel
-	local self = AbstractModel.new("InventoryModel", ownerId, "User", {
-		ownerId = "",
-		gold = 0,
-		treasure = 0,
-	}) :: any
+	local self = AbstractModel.new("InventoryModel", ownerId, "User") :: any
 	setmetatable(self, InventoryModel)
 
 	self.gold = 0

@@ -20,7 +20,7 @@ export type AbstractModel = typeof(setmetatable({} :: {
 	_stateProperty: any,
 }, AbstractModel))
 
-function AbstractModel.new(modelName: string, ownerId: string, scope: ModelScope, defaultState: any): AbstractModel
+function AbstractModel.new(modelName: string, ownerId: string, scope: ModelScope): AbstractModel
 	local self = setmetatable({}, AbstractModel) :: any
 	self.ownerId = ownerId
 	self._modelName = modelName
@@ -28,7 +28,7 @@ function AbstractModel.new(modelName: string, ownerId: string, scope: ModelScope
 
 	-- Register Bolt RemoteProperty for state synchronization
 	local propertyName = modelName:gsub("Model$", "")
-	self._stateProperty = Network.registerState(propertyName, defaultState)
+	self._stateProperty = Network.registerState(propertyName)
 
 	return self
 end

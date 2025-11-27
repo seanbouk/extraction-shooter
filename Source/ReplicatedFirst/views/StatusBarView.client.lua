@@ -22,10 +22,8 @@ local Players = game:GetService("Players")
 
 local localPlayer = Players.LocalPlayer
 
-local StateEvents = require(ReplicatedStorage:WaitForChild("StateEvents"))
-
-local eventsFolder = ReplicatedStorage:WaitForChild("Events")
-local inventoryStateChanged = eventsFolder:WaitForChild(StateEvents.Inventory.EventName) :: RemoteEvent
+local Network = require(ReplicatedStorage:WaitForChild("Network"))
+local inventoryState = Network.State.Inventory
 
 local STATUS_BAR_TAG = "StatusBar"
 local GOLD_EMOJI = "💰"
@@ -49,11 +47,9 @@ local function setupStatusBar(statusBar: Instance)
 
 	updateLabels(0, 0)
 
-	inventoryStateChanged.OnClientEvent:Connect(function(inventoryData: StateEvents.InventoryData)
-		updateLabels(inventoryData.gold, inventoryData.treasure)
+	inventoryState:Observe(function(data: Network.InventoryState)
+		updateLabels(data.gold, data.treasure)
 	end)
-
-	inventoryStateChanged:FireServer()
 end
 
 for _, statusBar in ipairs(CollectionService:GetTagged(STATUS_BAR_TAG)) do

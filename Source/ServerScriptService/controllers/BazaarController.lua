@@ -4,7 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AbstractController = require(script.Parent.AbstractController)
 local InventoryModel = require(script.Parent.Parent.models.user.InventoryModel)
-local IntentActions = require(ReplicatedStorage.IntentActions)
+local Network = require(ReplicatedStorage.Network)
 
 local BazaarController = {}
 BazaarController.__index = BazaarController
@@ -23,11 +23,13 @@ local function buyTreasure(inventory: any, player: Player)
 	end
 end
 
+local BUY_TREASURE = "BuyTreasure"
+
 local ACTIONS = {
-	[IntentActions.Bazaar.BuyTreasure] = buyTreasure,
+	[BUY_TREASURE] = buyTreasure,
 }
 
-function BazaarController:executeAction(player: Player, action: IntentActions.BazaarAction)
+function BazaarController:executeAction(player: Player, action: Network.BazaarAction)
 	local inventory = InventoryModel.get(tostring(player.UserId))
 	self:dispatchAction(ACTIONS, action, player, inventory, player)
 end
@@ -36,7 +38,7 @@ function BazaarController.new(): BazaarController
 	local self = AbstractController.new("BazaarController") :: any
 	setmetatable(self, BazaarController)
 
-	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.BazaarAction)
+	self.intentEvent.OnServerEvent:Connect(function(player: Player, action: Network.BazaarAction)
 		self:executeAction(player, action)
 	end)
 

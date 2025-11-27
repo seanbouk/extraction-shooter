@@ -4,7 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AbstractController = require(script.Parent.AbstractController)
 local InventoryModel = require(script.Parent.Parent.models.user.InventoryModel)
-local IntentActions = require(ReplicatedStorage.IntentActions)
+local Network = require(ReplicatedStorage.Network)
 
 local CashMachineController = {}
 CashMachineController.__index = CashMachineController
@@ -20,12 +20,15 @@ local function deposit(inventory: any, amount: number, player: Player)
 	inventory:addGold(-amount)
 end
 
+local WITHDRAW = "Withdraw"
+local DEPOSIT = "Deposit"
+
 local ACTIONS = {
-	[IntentActions.CashMachine.Withdraw] = withdraw,
-	[IntentActions.CashMachine.Deposit] = deposit,
+	[WITHDRAW] = withdraw,
+	[DEPOSIT] = deposit,
 }
 
-function CashMachineController:executeAction(player: Player, action: IntentActions.CashMachineAction, amount: number)
+function CashMachineController:executeAction(player: Player, action: Network.CashMachineAction, amount: number)
 	if amount <= 0 then
 		warn("Invalid amount received from " .. player.Name .. ": " .. tostring(amount))
 		return
@@ -40,7 +43,7 @@ function CashMachineController.new(): CashMachineController
 	local self = AbstractController.new("CashMachineController") :: any
 	setmetatable(self, CashMachineController)
 
-	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.CashMachineAction, amount: number)
+	self.intentEvent.OnServerEvent:Connect(function(player: Player, action: Network.CashMachineAction, amount: number)
 		self:executeAction(player, action, amount)
 	end)
 

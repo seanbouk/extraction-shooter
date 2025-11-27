@@ -12,7 +12,11 @@ export type InventoryModel = typeof(setmetatable({} :: {
 }, InventoryModel)) & AbstractModel.AbstractModel
 
 function InventoryModel.new(ownerId: string): InventoryModel
-	local self = AbstractModel.new("InventoryModel", ownerId, "User") :: any
+	local self = AbstractModel.new("InventoryModel", ownerId, "User", {
+		ownerId = "",
+		gold = 0,
+		treasure = 0,
+	}) :: any
 	setmetatable(self, InventoryModel)
 
 	self.gold = 0
@@ -33,13 +37,13 @@ end
 
 function InventoryModel:addGold(amount: number): ()
 	self.gold += amount
-	self:fire("owner")
+	self:syncState()
 end
 
 function InventoryModel:spendGold(amount: number): boolean
 	if self.gold >= amount then
 		self.gold -= amount
-		self:fire("owner")
+		self:syncState()
 		return true
 	end
 	return false
@@ -47,13 +51,13 @@ end
 
 function InventoryModel:addTreasure(amount: number): ()
 	self.treasure += amount
-	self:fire("owner")
+	self:syncState()
 end
 
 function InventoryModel:spendTreasure(amount: number): boolean
 	if self.treasure >= amount then
 		self.treasure -= amount
-		self:fire("owner")
+		self:syncState()
 		return true
 	end
 	return false

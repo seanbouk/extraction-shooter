@@ -4,66 +4,31 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
 local PersistenceService = require(script.Parent.Parent.services.PersistenceService)
+local Network = require(ReplicatedStorage.Network)
 
 local AbstractModel = {}
 AbstractModel.__index = AbstractModel
 
 local registries: { [string]: { [string]: AbstractModel } } = {}
 
-local remoteEvents: { [string]: RemoteEvent } = {}
-
 type ModelScope = "User" | "Server"
 
 export type AbstractModel = typeof(setmetatable({} :: {
 	ownerId: string,
-	remoteEvent: RemoteEvent,
 	_modelName: string,
 	_scope: ModelScope,
+	_stateProperty: any,
 }, AbstractModel))
 
-function AbstractModel.new(modelName: string, ownerId: string, scope: ModelScope): AbstractModel
+function AbstractModel.new(modelName: string, ownerId: string, scope: ModelScope, defaultState: any): AbstractModel
 	local self = setmetatable({}, AbstractModel) :: any
 	self.ownerId = ownerId
 	self._modelName = modelName
 	self._scope = scope
 
-	if remoteEvents[modelName] == nil then
-		local eventName = modelName:gsub("Model$", "") .. "StateChanged"
-
-		local eventsFolder = ReplicatedStorage:FindFirstChild("Events")
-		if not eventsFolder then
-			eventsFolder = Instance.new("Folder")
-			eventsFolder.Name = "Events"
-			eventsFolder.Parent = ReplicatedStorage
-		end
-
-		local event = eventsFolder:FindFirstChild(eventName)
-		if not event then
-			event = Instance.new("RemoteEvent")
-			event.Name = eventName
-			event.Parent = eventsFolder
-		end
-
-		remoteEvents[modelName] = event :: RemoteEvent
-
-		remoteEvents[modelName].OnServerEvent:Connect(function(player: Player)
-			local ownerId = tostring(player.UserId)
-
-			local modelModule = script.Parent:FindFirstChild("user"):FindFirstChild(modelName)
-				or script.Parent:FindFirstChild("server"):FindFirstChild(modelName)
-			if modelModule then
-				local success, model = pcall(require, modelModule)
-				if success and model.get then
-					local instance = model.get(ownerId)
-					if instance then
-						instance:fire("owner", true)
-					end
-				end
-			end
-		end)
-	end
-
-	self.remoteEvent = remoteEvents[modelName] :: RemoteEvent
+	-- Register Bolt RemoteProperty for state synchronization
+	local propertyName = modelName:gsub("Model$", "")
+	self._stateProperty = Network.registerState(propertyName, defaultState)
 
 	return self
 end
@@ -94,6 +59,17 @@ function AbstractModel.removeInstance(modelName: string, ownerId: string): ()
 	end
 end
 
+function AbstractModel:_extractState()
+	local state = {}
+	for key, value in pairs(self) do
+		-- Include only public fields (no leading underscore, no functions)
+		if not key:match("^_") and type(value) ~= "function" then
+			state[key] = value
+		end
+	end
+	return state
+end
+
 function AbstractModel:_applyLoadedData(loadedData: { [string]: any }?): ()
 	if not loadedData then
 		return
@@ -106,27 +82,30 @@ function AbstractModel:_applyLoadedData(loadedData: { [string]: any }?): ()
 	end
 end
 
-function AbstractModel:fire(scope: "owner" | "all", skipPersistence: boolean?): ()
-	if scope ~= "owner" and scope ~= "all" then
-		error("fire() scope must be 'owner' or 'all', got: " .. tostring(scope))
-	end
-
-	if not skipPersistence and self._scope ~= "Server" then
+function AbstractModel:syncState(skipPersistence: boolean?): ()
+	-- Queue persistence for User-scoped models
+	if not skipPersistence and self._scope == "User" then
 		PersistenceService:queueWrite(self._modelName, self.ownerId, self)
 	end
 
-	if scope == "owner" then
+	-- Extract current state
+	local state = self:_extractState()
+
+	-- Automatic scope detection based on model scope type
+	if self._scope == "User" then
+		-- User-scoped models: Send only to owner
 		local userId = tonumber(self.ownerId)
 		if userId then
 			local player = Players:GetPlayerByUserId(userId)
 			if player then
-				self.remoteEvent:FireClient(player, self)
+				self._stateProperty:SetFor(player, state)  -- Bolt per-player sync
 			else
 				warn("Could not find player with UserId: " .. tostring(self.ownerId))
 			end
 		end
-	elseif scope == "all" then
-		self.remoteEvent:FireAllClients(self)
+	elseif self._scope == "Server" then
+		-- Server-scoped models: Broadcast to all
+		self._stateProperty:Set(state)  -- Bolt global sync
 	end
 end
 

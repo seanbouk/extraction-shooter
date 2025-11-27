@@ -7,13 +7,11 @@ local TweenService = game:GetService("TweenService")
 
 local localPlayer = Players.LocalPlayer
 
-local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
-local StateEvents = require(ReplicatedStorage:WaitForChild("StateEvents"))
+local Network = require(ReplicatedStorage:WaitForChild("Network"))
 
-local eventsFolder = ReplicatedStorage:WaitForChild("Events")
-local shrineIntent = eventsFolder:WaitForChild("ShrineIntent") :: RemoteEvent
-local shrineStateChanged = eventsFolder:WaitForChild(StateEvents.Shrine.EventName) :: RemoteEvent
-local inventoryStateChanged = eventsFolder:WaitForChild(StateEvents.Inventory.EventName) :: RemoteEvent
+local shrineIntent = Network.Intent.Shrine
+local shrineState = Network.State.Shrine
+local inventoryState = Network.State.Inventory
 
 local SHRINE_TAG = "Shrine"
 local DONATION_AMOUNT = 1
@@ -80,15 +78,15 @@ local function setupShrine(shrine: Instance)
 		end
 
 		sound:Play()
-		shrineIntent:FireServer(IntentActions.Shrine.Donate)
+		shrineIntent:FireServer(Network.Actions.Shrine.Donate)
 	end)
 
-	-- Listen for shrine state changes (ALL players see this - no ownerId filter!)
-	shrineStateChanged.OnClientEvent:Connect(function(shrineData: StateEvents.ShrineData)
-		particleEmitter:Emit(shrineData.treasure)
+	-- Listen for shrine state changes (ALL players see this)
+	shrineState:Observe(function(data: Network.ShrineState)
+		particleEmitter:Emit(data.treasure)
 
-		if shrineData.userId and shrineData.userId ~= "" then
-			local username = getPlayerNameFromUserId(shrineData.userId)
+		if data.userId and data.userId ~= "" then
+			local username = getPlayerNameFromUserId(data.userId)
 			textBox.Text = "Thank you, " .. username .. "!"
 
 			if activeTween1 then
@@ -149,15 +147,10 @@ local function setupShrine(shrine: Instance)
 		end
 	end)
 
-	inventoryStateChanged.OnClientEvent:Connect(function(inventoryData: StateEvents.InventoryData)
-		local localPlayerId = tostring(localPlayer.UserId)
-		if inventoryData.ownerId == localPlayerId then
-			currentTreasure = inventoryData.treasure
-			updateState(currentTreasure >= DONATION_AMOUNT)
-		end
+	inventoryState:Observe(function(data: Network.InventoryState)
+		currentTreasure = data.treasure
+		updateState(currentTreasure >= DONATION_AMOUNT)
 	end)
-
-	inventoryStateChanged:FireServer()
 end
 
 for _, shrine in ipairs(CollectionService:GetTagged(SHRINE_TAG)) do

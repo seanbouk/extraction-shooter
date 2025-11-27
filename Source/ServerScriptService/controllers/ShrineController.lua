@@ -5,7 +5,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local AbstractController = require(script.Parent.AbstractController)
 local InventoryModel = require(script.Parent.Parent.models.user.InventoryModel)
 local ShrineModel = require(script.Parent.Parent.models.server.ShrineModel)
-local IntentActions = require(ReplicatedStorage.IntentActions)
+local Network = require(ReplicatedStorage.Network)
 
 local ShrineController = {}
 ShrineController.__index = ShrineController
@@ -23,11 +23,13 @@ local function donate(inventory: any, shrine: any, player: Player)
 	end
 end
 
+local DONATE = "Donate"
+
 local ACTIONS = {
-	[IntentActions.Shrine.Donate] = donate,
+	[DONATE] = donate,
 }
 
-function ShrineController:executeAction(player: Player, action: IntentActions.ShrineAction)
+function ShrineController:executeAction(player: Player, action: Network.ShrineAction)
 	local inventory = InventoryModel.get(tostring(player.UserId))
 	local shrine = ShrineModel.get("SERVER")
 
@@ -38,7 +40,7 @@ function ShrineController.new(): ShrineController
 	local self = AbstractController.new("ShrineController") :: any
 	setmetatable(self, ShrineController)
 
-	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.ShrineAction)
+	self.intentEvent.OnServerEvent:Connect(function(player: Player, action: Network.ShrineAction)
 		self:executeAction(player, action)
 	end)
 

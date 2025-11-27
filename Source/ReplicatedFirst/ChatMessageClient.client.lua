@@ -14,17 +14,19 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ChatMessageClient = {}
 
 function ChatMessageClient.new(): ()
-	local eventsFolder = ReplicatedStorage:WaitForChild("Events")
-	local messageRemote = eventsFolder:WaitForChild("SlashCommandStateChanged") :: RemoteEvent
+	local Network = require(ReplicatedStorage:WaitForChild("Network"))
 
-	messageRemote.OnClientEvent:Connect(function(message: string)
-		local textChannels = TextChatService:WaitForChild("TextChannels")
-		local generalChannel = textChannels:FindFirstChild("RBXGeneral")
+	local textChannels = TextChatService:WaitForChild("TextChannels")
+	local generalChannel = textChannels:FindFirstChild("RBXGeneral")
 
-		if generalChannel then
-			generalChannel:DisplaySystemMessage(message)
-		else
-			warn("[ChatMessageClient] Could not find RBXGeneral channel")
+	if not generalChannel then
+		warn("[ChatMessageClient] Could not find RBXGeneral channel")
+		return
+	end
+
+	Network.State.SlashCommand:Observe(function(data: { message: string })
+		if data.message ~= "" then
+			generalChannel:DisplaySystemMessage(data.message)
 		end
 	end)
 

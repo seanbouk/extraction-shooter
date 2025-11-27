@@ -30,8 +30,8 @@ local function sendCommand(commandString: string): ()
 end
 
 function SlashCommandClient.new(): ()
-	local eventsFolder = ReplicatedStorage:WaitForChild("Events")
-	commandRemote = eventsFolder:WaitForChild("SlashCommandIntent") :: RemoteEvent
+	local Network = require(ReplicatedStorage:WaitForChild("Network"))
+	commandRemote = Network.Intent.SlashCommand
 
 	local textCommands = TextChatService:FindFirstChild("TextChatCommands")
 	if textCommands then

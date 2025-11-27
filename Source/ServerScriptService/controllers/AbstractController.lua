@@ -1,36 +1,23 @@
 --!strict
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Network = require(ReplicatedStorage.Network)
 
 local AbstractController = {}
 AbstractController.__index = AbstractController
 
 export type AbstractController = typeof(setmetatable({} :: {
-	remoteEvent: RemoteEvent,
+	intentEvent: any,
 }, AbstractController))
 
 function AbstractController.new(controllerName: string): AbstractController
 	local self = setmetatable({}, AbstractController)
 
-	local eventName = controllerName:gsub("Controller$", "") .. "Intent"
+	-- Auto-register with Network using Bolt ReliableEvent
+	local eventName = controllerName:gsub("Controller$", "")
+	self.intentEvent = Network.registerIntent(eventName)
 
-	local eventsFolder = ReplicatedStorage:FindFirstChild("Events")
-	if not eventsFolder then
-		eventsFolder = Instance.new("Folder")
-		eventsFolder.Name = "Events"
-		eventsFolder.Parent = ReplicatedStorage
-	end
-
-	local remoteEvent = eventsFolder:FindFirstChild(eventName)
-	if not remoteEvent then
-		remoteEvent = Instance.new("RemoteEvent")
-		remoteEvent.Name = eventName
-		remoteEvent.Parent = eventsFolder
-	end
-
-	self.remoteEvent = remoteEvent :: RemoteEvent
-
-	print(controllerName .. " initialized")
+	print(controllerName .. " initialized with Bolt")
 
 	return self
 end

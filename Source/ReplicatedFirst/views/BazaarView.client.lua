@@ -24,12 +24,10 @@ local Players = game:GetService("Players")
 
 local localPlayer = Players.LocalPlayer
 
-local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
-local StateEvents = require(ReplicatedStorage:WaitForChild("StateEvents"))
+local Network = require(ReplicatedStorage:WaitForChild("Network"))
 
-local eventsFolder = ReplicatedStorage:WaitForChild("Events")
-local bazaarIntent = eventsFolder:WaitForChild("BazaarIntent") :: RemoteEvent
-local inventoryStateChanged = eventsFolder:WaitForChild(StateEvents.Inventory.EventName) :: RemoteEvent
+local bazaarIntent = Network.Intent.Bazaar
+local inventoryState = Network.State.Inventory
 
 local BAZAAR_TAG = "Bazaar"
 local TREASURE_COST = 200
@@ -87,15 +85,12 @@ local function setupBazaar(bazaar: Instance)
 
 		sound:Play()
 
-		bazaarIntent:FireServer(IntentActions.Bazaar.BuyTreasure)
+		bazaarIntent:FireServer(Network.Actions.Bazaar.BuyTreasure)
 	end)
 
-	inventoryStateChanged.OnClientEvent:Connect(function(inventoryData: StateEvents.InventoryData)
-		local localPlayerId = tostring(localPlayer.UserId)
-		if inventoryData.ownerId == localPlayerId then
-			currentGold = inventoryData.gold
-			updateState(currentGold)
-		end
+	inventoryState:Observe(function(data: Network.InventoryState)
+		currentGold = data.gold
+		updateState(currentGold)
 	end)
 end
 

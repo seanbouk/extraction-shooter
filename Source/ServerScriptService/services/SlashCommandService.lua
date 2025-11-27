@@ -18,7 +18,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextChatService = game:GetService("TextChatService")
 
-local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
+local Network = require(ReplicatedStorage.Network)
 
 local SlashCommandService = {}
 
@@ -34,7 +34,7 @@ local groupId: number? = nil
 
 local function sendChatMessage(player: Player, message: string): ()
 	if messageRemote then
-		messageRemote:FireClient(player, message)
+		Network.State.SlashCommand:SetFor(player, { message = message })
 	else
 		warn("[SlashCommandService] Cannot send chat message - messageRemote not initialized")
 	end
@@ -238,9 +238,9 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 
 			local controllerKey = controllerInfo.originalName:gsub("Controller$", "")
 
-			local actionsTable = IntentActions[controllerKey]
+			local actionsTable = Network.Actions[controllerKey]
 			if actionsTable then
-				for _, actionName in pairs(actionsTable) do
+				for actionName, _ in pairs(actionsTable) do
 					table.insert(actions, actionName)
 				end
 			end
@@ -255,7 +255,7 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 				end
 			else
 				helpText ..= "Actions not documented.\n"
-				helpText ..= "See IntentActions module for available actions.\n"
+				helpText ..= "See Network.Actions module for available actions.\n"
 			end
 
 			return true, helpText
@@ -577,16 +577,9 @@ function SlashCommandService:init(): ()
 		groupId = game.CreatorId
 	end
 
-	-- Create RemoteEvent for commands (follows Intent pattern)
-	local eventsFolder = ReplicatedStorage:WaitForChild("Events")
-	commandRemote = Instance.new("RemoteEvent")
-	commandRemote.Name = "SlashCommandIntent"
-	commandRemote.Parent = eventsFolder
-
-	-- Create RemoteEvent for state changes (follows StateChanged pattern)
-	messageRemote = Instance.new("RemoteEvent")
-	messageRemote.Name = "SlashCommandStateChanged"
-	messageRemote.Parent = eventsFolder
+	-- Use Bolt events for commands and messages
+	commandRemote = Network.Intent.SlashCommand
+	messageRemote = Network.State.SlashCommand
 
 	-- Listen for command events
 	commandRemote.OnServerEvent:Connect(function(player: Player, commandString: string)

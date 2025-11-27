@@ -95,8 +95,9 @@ Players.PlayerAdded:Connect(function(player: Player)
 				instance:_applyLoadedData(loadedData)
 			end
 
-			-- Don't fire initial state here - client will request when ready
-			-- This prevents race condition where RemoteEvent hasn't replicated yet
+			-- Sync initial state to client (skipPersistence=true since we just loaded)
+			-- This ensures Bolt RemoteProperty has correct value when client calls Observe()
+			instance:syncState(true)
 		end
 	end
 end)

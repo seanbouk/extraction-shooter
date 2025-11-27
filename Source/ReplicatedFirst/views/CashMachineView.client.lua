@@ -20,10 +20,9 @@
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
+local Network = require(ReplicatedStorage:WaitForChild("Network"))
 
-local eventsFolder = ReplicatedStorage:WaitForChild("Events")
-local cashMachineIntent = eventsFolder:WaitForChild("CashMachineIntent") :: RemoteEvent
+local cashMachineIntent = Network.Intent.CashMachine
 
 local CASH_MACHINE_TAG = "CashMachine"
 local WITHDRAW_AMOUNT = 50
@@ -41,7 +40,7 @@ local function setupCashMachine(cashMachine: Instance)
 
 		sound:Play()
 
-		cashMachineIntent:FireServer(IntentActions.CashMachine.Withdraw, WITHDRAW_AMOUNT)
+		cashMachineIntent:FireServer(Network.Actions.CashMachine.Withdraw, WITHDRAW_AMOUNT)
 	end)
 end
 

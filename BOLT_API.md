@@ -715,6 +715,14 @@ writer:WriteI24(value: number)
 
 Writes a signed 24-bit integer (-8,388,608 to 8,388,607). Uses 3 bytes.
 
+#### WriteI32
+
+```lua
+writer:WriteI32(value: number)
+```
+
+Writes a signed 32-bit integer (-2,147,483,648 to 2,147,483,647). Uses 4 bytes.
+
 #### WriteF32
 
 ```lua
@@ -915,6 +923,14 @@ reader:ReadI24(): number
 ```
 
 Reads a signed 24-bit integer (-8,388,608 to 8,388,607).
+
+#### ReadI32
+
+```lua
+reader:ReadI32(): number
+```
+
+Reads a signed 32-bit integer (-2,147,483,648 to 2,147,483,647).
 
 #### ReadF32
 
@@ -1162,14 +1178,6 @@ return {
 ```
 
 ## Known Issues & Limitations
-
-### Integer Method Limitation
-
-The `WriteI32` method has a potential implementation issue and should be avoided. For signed 32-bit integers, use alternative approaches:
-
-- For values in range [-8,388,608 to 8,388,607]: Use `WriteI24`
-- For larger values: Use `WriteF32` or `WriteF64`
-- For values that fit in smaller ranges: Use `WriteI8` or `WriteI16`
 
 ### Number Precision Limits
 

@@ -507,7 +507,7 @@ end
 function BufferWriter.prototype.WriteI32(self: BufferWriter, value: number)
 	assert(value >= -2147483648 and value <= 2147483647, "number is out of range [-2,147,483,648..2,147,483,647]")
 
-	buffer.writei8(self.Buffer, self.Cursor, value)
+	buffer.writei32(self.Buffer, self.Cursor, value)
 	self.Cursor += 4
 end
 
@@ -547,6 +547,7 @@ function BufferWriter.prototype.WriteString(self: BufferWriter, value: string, c
 	if count then
 		buffer.writestring(self.Buffer, self.Cursor, value, count)
 		self.Cursor += count
+		return
 	end
 
 	local stringLength = string.len(value)

@@ -12,8 +12,8 @@ Views live exclusively on the client and are responsible for:
 
 - **Displaying** visual and audio feedback
 - **Listening** to user interactions (ProximityPrompts, buttons, etc.)
-- **Sending intents** to Controllers via RemoteEvents (when server logic is needed)
-- **Updating UI** based on state broadcasts from Models
+- **Sending intents** to Controllers via Bolt ReliableEvents (Network.Intent.*, when server logic is needed)
+- **Updating UI** based on state changes from Models via Bolt RemoteProperty (Network.State.* with Observe())
 
 ## Creating a New View
 
@@ -27,15 +27,16 @@ Views typically follow one of three patterns:
 - Example: Particle effects, sound effects, animations
 
 **Pattern B: Intent-Based with Server Validation**
-- Send intent to Controller via RemoteEvent
+- Send intent to Controller via Bolt ReliableEvent (Network.Intent.*)
 - Provide immediate feedback
 - Wait for server confirmation before showing final state
 - Example: Purchasing items, equipping gear, collecting objects
 
 **Pattern C: State Observation and UI Updates**
-- Listen to Model state change RemoteEvents
+- Observe Model state changes via Bolt RemoteProperty (Network.State.*.Observe())
 - Update UI based on authoritative server state
-- Filter updates by ownerId **only when receiving "all" scope broadcasts** (server already filters "owner" scope)
+- Observe() fires immediately with current state and on each update
+- Bolt handles per-player filtering automatically for User-scoped models
 - Example: Health bars, inventory displays, status indicators
 
 #### Decision Tree: Choosing the Right View Pattern
@@ -123,8 +124,8 @@ Create a new LocalScript in `src/client/views/YourView.client.lua`:
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Import shared constants
-local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
+-- Import Network module
+local Network = require(ReplicatedStorage:WaitForChild("Network"))
 
 -- Constants
 local TAG_NAME = "YourTag"
@@ -139,11 +140,8 @@ local function setupInstance(instance: Instance)
 		-- Provide immediate feedback
 		button.Text = "Clicked!"
 
-		-- Optional: Send intent to server
-		-- local intent = ReplicatedStorage:WaitForChild("Shared")
-		-- 	:WaitForChild("Events")
-		-- 	:WaitForChild("YourIntent") :: RemoteEvent
-		-- intent:FireServer(IntentActions.YourFeature.Action, data)
+		-- Optional: Send intent to server via Bolt ReliableEvent
+		-- Network.Intent.YourFeature:FireServer(Network.Actions.YourFeature.Action, data)
 	end)
 
 	print(`YourView: Setup complete for {instance.Name}`)
@@ -169,7 +167,7 @@ print("YourView: Initialized")
 ## File Locations
 
 - **Your Views**: `src/client/views/YourView.client.lua`
-- **RemoteEvents** (for server communication): `ReplicatedStorage/Shared/Events/`
+- **Network Module** (for server communication): `ReplicatedStorage/Network.luau`
 
 ## Example: CashMachineView
 
@@ -185,8 +183,7 @@ The `CashMachineView.client.lua` file demonstrates **Pattern B: Intent-Based wit
 ### Pattern Used:
 ```lua
 -- At the top of the file
-local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
-local cashMachineIntent = eventsFolder:WaitForChild("CashMachineIntent") :: RemoteEvent
+local Network = require(ReplicatedStorage:WaitForChild("Network"))
 local WITHDRAW_AMOUNT = 50
 
 -- In the setup function
@@ -196,8 +193,8 @@ proximityPrompt.Triggered:Connect(function(player: Player)
 	particleEmitter:Emit(particleCount)
 	sound:Play()
 
-	-- Send intent to server (using typed constant)
-	cashMachineIntent:FireServer(IntentActions.CashMachine.Withdraw, WITHDRAW_AMOUNT)
+	-- Send intent to server via Bolt ReliableEvent
+	Network.Intent.CashMachine:FireServer(Network.Actions.CashMachine.Withdraw, WITHDRAW_AMOUNT)
 end)
 ```
 
@@ -209,16 +206,15 @@ The `StatusBarView.client.lua` file demonstrates **Pattern C: State Observation 
 
 ### Features:
 - Uses CollectionService to find all "StatusBar" tagged ScreenGui instances
-- Listens to `InventoryStateChanged` RemoteEvent from the server
-- Filters updates to only show the local player's inventory data
+- Observes inventory state via Bolt RemoteProperty (Network.State.Inventory)
+- Bolt handles per-player filtering automatically for User-scoped models
 - Updates UI TextLabels with gold and treasure amounts
 - No user interaction - purely observes and displays model state
 
 ### Pattern Used:
 ```lua
 -- At the top of the file
-local inventoryStateChanged = eventsFolder:WaitForChild("InventoryStateChanged") :: RemoteEvent
-local localPlayer = Players.LocalPlayer
+local Network = require(ReplicatedStorage:WaitForChild("Network"))
 
 -- Type for the data received from server
 type InventoryData = {
@@ -233,49 +229,39 @@ local function updateLabels(gold: number, treasure: number)
 	treasureLabel.Text = `💎 {treasure}`
 end
 
--- Initialize with zero values
-updateLabels(0, 0)
-
--- Listen for state changes from server
-inventoryStateChanged.OnClientEvent:Connect(function(inventoryData: InventoryData)
-	-- No filtering needed - server already sent this only to the owner via FireClient
+-- Observe state changes from server via Bolt RemoteProperty
+-- Observe() fires immediately with current state, then on each update
+Network.State.Inventory:Observe(function(inventoryData: InventoryData)
+	-- No filtering needed - Bolt handles per-player filtering automatically
 	updateLabels(inventoryData.gold, inventoryData.treasure)
 end)
-
--- Request initial state from server (IMPORTANT!)
-inventoryStateChanged:FireServer()
 ```
 
 ### Key Concepts:
-- **State Observation**: Views listen to `[ModelName]StateChanged` RemoteEvents
-- **Filtering**: For "owner" scope broadcasts, the server already ensures only the owner receives the event via `FireClient()` - no client-side filtering needed. Only filter by `ownerId` when receiving "all" scope broadcasts (e.g., visible-to-all data like shrine donations).
-- **Initial State Request**: After setting up the listener, fire the event to server to request current state
+- **State Observation**: Views observe state via Network.State.*:Observe() callbacks
+- **Immediate State**: Observe() fires immediately with current state - no need to request initial state
+- **Automatic Filtering**: Bolt handles per-player filtering automatically for User-scoped models
+- **Reactive Updates**: Callback fires automatically on each state change from server
 - **Type Safety**: Define types for the data structure received from the server
 - **UI Updates**: Update TextLabels, progress bars, or other UI elements with new state
 - **Separation**: No user input handling - purely displays authoritative server state
 
-### Why Request Initial State?
+### Why Observe() is Better
 
-When a view needs to display model state immediately (like showing player's gold on join), it must request the initial state after setting up its listener:
+The Bolt Observe() pattern eliminates common issues with the old RemoteEvent pattern:
 
-```lua
--- 1. Set up listener first
-stateChangedEvent.OnClientEvent:Connect(function(data)
-	updateUI(data)
-end)
+**Advantages:**
+- ✅ Fires immediately with current state - no need to request initial state
+- ✅ No race conditions - always receives state even if late to observe
+- ✅ Automatic per-player filtering for User-scoped models
+- ✅ Cleaner, more reactive code pattern
+- ✅ Single API for both initial state and updates
 
--- 2. Then request initial state
-stateChangedEvent:FireServer()
-```
-
-**Why this pattern?**
-- Prevents race condition where server fires state before client is listening
-- Guarantees the view receives initial state once it's ready
-- Required for any view that displays state immediately on player join
-
-**When to use it:**
-- ✅ Views that show model state on join (inventory, health, stats)
-- ❌ Views that only respond to user actions (buttons, prompts)
+**Old Pattern (RemoteEvents) had issues:**
+- ❌ Required manual initial state request
+- ❌ Race condition if listener set up late
+- ❌ Had to filter by ownerId manually for "all" scope
+- ❌ Two separate APIs (OnClientEvent + FireServer)
 
 ## Best Practices
 

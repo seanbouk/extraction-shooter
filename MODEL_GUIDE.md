@@ -53,9 +53,9 @@ All models inherit from `AbstractModel.lua` which provides:
 - **`new(modelName: string, ownerId: string, scope: ModelScope)`**: Constructor for creating new instances with model name, owner identifier, and scope
 - **`getOrCreate(modelName: string, ownerId: string, constructorFn: () -> AbstractModel)`**: Centralized registry management - gets existing instance or creates new one
 - **`removeInstance(modelName: string, ownerId: string)`**: Centralized instance removal for cleanup
-- **`fire(scope: "owner" | "all")`**: Broadcasts model state to clients and prints debug output
+- **`syncState(skipPersistence: boolean?)`**: Syncs model state to clients via Bolt RemoteProperty and triggers DataStore persistence (User-scoped only). Automatically detects scope for filtering.
 - **`ownerId: string`**: Property storing the unique identifier for the model owner
-- **`remoteEvent: RemoteEvent`**: Auto-created RemoteEvent for state broadcasting (named `[ModelName]StateChanged`)
+- **`_stateProperty: RemoteProperty`**: Bolt RemoteProperty for state synchronization (registered via Network.registerState())
 
 ### Step 2: Determine Model Scope
 
@@ -236,17 +236,17 @@ end
 
 **Important**:
 - Pass the model name (e.g., `"YourModel"`) as the first parameter to `AbstractModel.new()`
-- This creates a RemoteEvent named `YourStateChanged` in `ReplicatedStorage/Shared/Events/`
-- Event names should be registered in `src/shared/StateEvents.lua` for type safety
+- This registers a Bolt RemoteProperty via `Network.registerState()` for state synchronization
+- State properties are accessed in Network.luau as `Network.State.Your` (model name without "Model" suffix)
 - Pass `ownerId` as the second parameter
 - Pass the scope (`"User"` or `"Server"`) as the third parameter
 - Cast `AbstractModel.new()` to `any` to allow metatable manipulation without type errors
 
 **Type Safety Tip:**
-Define your model's state data type in `src/shared/StateEvents.lua` so views can use type-safe handlers:
+Define your model's state data type in Network.luau for type-safe observers:
 
 ```lua
--- In StateEvents.lua
+-- In Network.luau
 export type YourModelData = {
     ownerId: string,
     property1: number,
@@ -254,7 +254,7 @@ export type YourModelData = {
 }
 
 -- Views can then use:
-stateChanged.OnClientEvent:Connect(function(data: StateEvents.YourModelData)
+Network.State.Your:Observe(function(data: Network.YourModelData)
     -- Type-safe handling
 end)
 ```
@@ -291,62 +291,66 @@ local sharedModel = YourModel.get("SERVER")
 - Proper cleanup via `remove()` prevents memory leaks
 - Universal pattern works for players and other game entities
 
-### Step 5: Broadcasting State Changes to Clients
+### Step 5: Syncing State Changes to Clients
 
-Models automatically broadcast their state to clients using the `fire()` method. Every model method that changes state should call `fire()` with an explicit scope:
+Models automatically sync their state to clients using the `syncState()` method. Every model method that changes state should call `syncState()`:
 
 ```lua
 function YourModel:updateProperty(newValue): ()
 	self.propertyName = newValue
-	self:fire("owner")  -- Broadcast to owning player only
+	self:syncState()  -- Sync to clients (scope auto-detected from model type)
 end
 
-function YourModel:updatePublicProperty(newValue): ()
-	self.publicProperty = newValue
-	self:fire("all")  -- Broadcast to all connected players
+function YourModel:updateWithoutPersistence(newValue): ()
+	self.propertyName = newValue
+	self:syncState(true)  -- Skip DataStore persistence (still syncs state)
 end
 ```
 
-#### Broadcast Scopes
+#### Automatic Scope Detection
 
-- **`"owner"`**: Sends state only to the owning player using `FireClient(player, modelData)`
+The `syncState()` method **automatically detects the appropriate broadcast scope** based on the model's scope type:
+
+- **User-scoped models**: Automatically sync only to the owning player via `RemoteProperty:SetFor(player, state)`
   - Use for private data: inventory, quest progress, personal stats
   - Most common for player-specific models
+  - Triggers DataStore persistence
 
-- **`"all"`**: Sends state to all connected players using `FireAllClients(modelData)`
-  - Use for public data: equipped weapons, appearance, health (visible to others)
-  - Use when other players need to see the change
+- **Server-scoped models**: Automatically sync to all connected players via `RemoteProperty:Set(state)`
+  - Use for shared data: match scores, server events, shared game state
+  - Data visible to all players
+  - Does not trigger persistence (Server-scoped models are ephemeral)
 
-**Important**: The `scope` parameter is **required**. There is no default to force explicit decisions about data visibility.
+**Advantages of automatic scope detection:**
+- ✅ No need to specify "owner" or "all" - determined by model type
+- ✅ Fewer errors - can't accidentally broadcast private data to all players
+- ✅ Cleaner code - single `syncState()` call for all models
 
-#### Example: Private vs Public Data
+#### Example: User vs Server Scoped
 
 ```lua
--- Private: Only the player should see their gold
+-- User-scoped model: Only the player sees their gold
 function InventoryModel:addGold(amount: number): ()
 	self.gold += amount
-	self:fire("owner")
+	self:syncState()  -- Automatically sends only to owner + persists to DataStore
 end
 
--- Public: Everyone should see the equipped weapon
-function AppearanceModel:setWeapon(weaponId: string): ()
-	self.equippedWeapon = weaponId
-	self:fire("all")
-end
-
--- Public: Everyone should see health changes
-function HealthModel:takeDamage(amount: number): ()
-	self.health -= amount
-	self:fire("all")
+-- Server-scoped model: Everyone sees the shared shrine donations
+function ShrineModel:addDonation(donorName: string, amount: number): ()
+	self.totalDonations += amount
+	self.lastDonor = donorName
+	self:syncState()  -- Automatically broadcasts to all players
 end
 ```
 
 #### How It Works
 
-1. When `fire()` is called, AbstractModel broadcasts the **entire model state** to clients
-2. A RemoteEvent named `[ModelName]StateChanged` is automatically created in `ReplicatedStorage/Shared/Events/`
-3. Client-side Views listen to this RemoteEvent and update the UI
-4. For "owner" scope, the server uses `FireClient(player, modelData)` which already ensures only the owner receives the event - Views don't need to filter. For "all" scope, Views may need to filter by `ownerId` if they only want to display data relevant to the local player.
+1. When `syncState()` is called, AbstractModel syncs the **entire model state** to clients via Bolt RemoteProperty
+2. Bolt RemoteProperty registered via `Network.registerState()` in AbstractModel.new()
+3. Client-side Views use `Network.State.ModelName:Observe()` to receive state updates
+4. For User-scoped models, Bolt handles per-player filtering automatically via `SetFor(player, state)`
+5. For Server-scoped models, Bolt broadcasts to all players via `Set(state)`
+6. User-scoped models also trigger DataStore persistence via PersistenceService
 
 ## Examples
 

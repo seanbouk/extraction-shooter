@@ -43,7 +43,7 @@ This matches the pattern used by all other systems:
                    │ (Client)             │    Intercepts chat commands
                    └──────────┬───────────┘
                               │
-                              │ RemoteEvent:FireServer()
+                              │ Bolt ReliableEvent:FireServer()
                               │
                               ▼
                    ┌──────────────────────┐
@@ -56,21 +56,21 @@ This matches the pattern used by all other systems:
                 ▼                           ▼
        ┌────────────────┐         ┌────────────────┐
        │ Model Method   │         │ Controller     │
-       │ Execution      │         │ RemoteEvent    │
+       │ Execution      │         │ Bolt Event     │
        └────────┬───────┘         └────────┬───────┘
                 │                          │
-                │                          │ Fires existing RemoteEvent
+                │                          │ Fires existing Bolt event
                 │                          │
                 ▼                          ▼
        ┌────────────────┐         ┌────────────────┐
-       │ State Broadcast│         │ Controller     │
-       │                │         │ OnServerEvent  │ ← Uses existing logic
+       │ State Sync     │         │ Controller     │
+       │ (Bolt)         │         │ OnServerEvent  │ ← Uses existing logic
        └────────────────┘         └────────┬───────┘
                                            │
                                            ▼
                                   ┌────────────────┐
                                   │ Model Update & │
-                                  │ State Broadcast│
+                                  │ State Sync     │
                                   └────────────────┘
 ```
 
@@ -251,27 +251,27 @@ When the client starts:
 **For Model Commands:**
 
 1. **Client**: TextChatService detects the command
-2. **Client**: SlashCommandClient sends command string to server
+2. **Client**: SlashCommandClient sends command string to server via Bolt ReliableEvent
 3. **Server**: SlashCommandService validates your rank/permissions
 4. **Server**: Parses command into model name, method name, and arguments
 5. **Server**: Gets the appropriate model instance (your user model or server model)
 6. **Server**: Calls the method with parsed arguments
-7. **Model**: Method executes, updates state, calls `fire()` to broadcast
-8. **Client**: Your views update automatically via normal MVC state flow
+7. **Model**: Method executes, updates state, calls `syncState()` to sync to clients
+8. **Client**: Your views update automatically via Bolt Observe() callbacks
 
 **For Controller Commands:**
 
 1. **Client**: TextChatService detects the command
-2. **Client**: SlashCommandClient sends command string to server
+2. **Client**: SlashCommandClient sends command string to server via Bolt ReliableEvent
 3. **Server**: SlashCommandService validates your rank/permissions
 4. **Server**: Parses command into controller name, action name, and arguments
-5. **Server**: Fires the controller's RemoteEvent: `remoteEvent:Fire(player, action, args...)`
+5. **Server**: Fires the controller's Bolt event: `intentEvent:Fire(player, action, args...)`
 6. **Controller**: OnServerEvent handler receives the event (same as if client sent it)
 7. **Controller**: Validates request, gets models, executes action handler
-8. **Model**: Updates state, calls `fire()` to broadcast
-9. **Client**: Your views update automatically via normal MVC state flow
+8. **Model**: Updates state, calls `syncState()` to sync to clients
+9. **Client**: Your views update automatically via Bolt Observe() callbacks
 
-**Key Difference:** Controller commands reuse the controller's existing RemoteEvent and validation logic, ensuring the same behavior as normal gameplay actions.
+**Key Difference:** Controller commands reuse the controller's existing Bolt ReliableEvent and validation logic, ensuring the same behavior as normal gameplay actions.
 
 ### Argument Parsing
 
@@ -442,6 +442,6 @@ Slash commands provide a **zero-configuration admin tool system**:
 3. ✅ **Permission-controlled** - Only high-rank users can execute
 4. ✅ **Type-safe** - Arguments auto-parsed to correct types
 5. ✅ **MVC-compliant** - Uses normal state broadcast flow
-6. ✅ **Controller support** - Reuses existing validation and RemoteEvents
+6. ✅ **Controller support** - Reuses existing validation and Bolt ReliableEvents
 
 Use them for testing, debugging, and admin actions - but remember that normal gameplay should use the full MVC pattern (Views → Controllers → Models) for proper validation and security!

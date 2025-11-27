@@ -8,7 +8,7 @@ This template implements a strict Model-View-Controller pattern with automatic s
 
 - **Models** (server-side): Authoritative game state that automatically syncs to DataStore
 - **Views** (client-side): LocalScripts that provide responsive UI and wait for server confirmation
-- **Controllers** (server-side): Listen to intents via RemoteEvents, validate, and update Models
+- **Controllers** (server-side): Listen to intents via Bolt ReliableEvents, validate, and update Models
 
 ### Data Flow Diagram
 
@@ -24,11 +24,11 @@ This template implements a strict Model-View-Controller pattern with automatic s
                     └───┬────────┬───┘
                         │        │
           Immediate     │        │ Send intent via
-          feedback      │        │ RemoteEvent
-          (visual)      │        │
+          feedback      │        │ Network.Intent.*
+          (visual)      │        │ (Bolt ReliableEvent)
                         │        ▼
                         │  ┌──────────────────┐
-                        │  │ Controller       │  ← Listens to RemoteEvents
+                        │  │ Controller       │  ← Listens to Bolt events
                         │  │ (Server)         │    Validates request
                         │  └────────┬─────────┘
                         │           │
@@ -42,12 +42,12 @@ This template implements a strict Model-View-Controller pattern with automatic s
                         │       │                     (auto-sync)
                         │       ▼
                         │  ┌──────────────────┐
-                        │  │ State Broadcast  │  ← RemoteEvent to clients
-                        │  └────────┬─────────┘
+                        │  │ State Sync       │  ← Network.State.*
+                        │  └────────┬─────────┘    (Bolt RemoteProperty)
                         │           │
                         │           ▼
                         └──────► View Updates  ← Visual state change
-                                (Client)         after server confirmation
+                                (Client)         via Observe() callback
 ```
 
 ### Data Flow Steps
@@ -61,12 +61,12 @@ This template implements a strict Model-View-Controller pattern with automatic s
 **During Gameplay:**
 1. **User Interaction**: User clicks a button, interacts with a 3D object, etc.
 2. **Immediate Feedback**: View provides instant visual feedback (button animation, hover effect)
-3. **Intent Sent**: View fires RemoteEvent expressing user intent (not a command)
-4. **Server Validation**: Controller receives intent, validates permissions/rules
+3. **Intent Sent**: View fires Bolt ReliableEvent via Network.Intent.* expressing user intent (not a command)
+4. **Server Validation**: Controller receives intent via Bolt event, validates permissions/rules
 5. **Model Update**: Controller updates the appropriate Model(s)
 6. **Auto-Persist**: Model change triggers automatic DataStore write (queued with rate limiting)
-7. **Broadcast**: Model broadcasts state change to relevant clients
-8. **View Update**: Views receive confirmation and update visual state accordingly
+7. **State Sync**: Model syncs state via Bolt RemoteProperty (Network.State.*)
+8. **View Update**: Views receive state updates via Observe() callback and update visual state accordingly
 
 ## MVC Components
 
@@ -86,7 +86,7 @@ Models represent authoritative game state and live exclusively on the server:
 
 Controllers handle business logic and orchestrate Model updates:
 
-- Listen to RemoteEvents expressing user intent
+- Listen to Bolt ReliableEvents (via Network.Intent.*) expressing user intent
 - Validate requests (permissions, game rules, anti-cheat)
 - Update Models based on validated intents
 - Never directly manipulate Views
@@ -100,8 +100,8 @@ Views are LocalScripts that observe state and update visual elements:
 
 - Use CollectionService to target tagged objects in Workspace or UI
 - Provide immediate feedback for user interactions
-- Listen to RemoteEvents for state changes from server
-- Request initial state by firing the StateChanged event after setting up listeners
+- Observe state changes via Bolt RemoteProperty (Network.State.*) using Observe() callback
+- Observe() fires immediately with current state - no need to request initial state
 - Can target server-created objects (visible to all) or client-only objects
 - Examples: InventoryUI, ScoreboardDisplay, InteractableObject
 
@@ -133,7 +133,7 @@ Bolt is a high-performance networking library included with this template that p
 
 ### 1. Intents, Not Commands
 
-RemoteEvents express **what the user wants to do**, not direct commands:
+Bolt ReliableEvents express **what the user wants to do**, not direct commands:
 - Good: `RequestPurchaseItem`, `AttemptEquipWeapon`
 - Bad: `SetInventory`, `UpdatePlayerGold`
 
@@ -258,12 +258,12 @@ Always start in this order:
 
 1. **Create the Model** (`src/server/models/`)
    - Define the data structure as a ModuleScript (`.lua`)
-   - Call `fire()` after state changes to trigger persistence and broadcasting
+   - Call `syncState()` after state changes to trigger persistence and state sync
    - DataStore persistence is automatic via PersistenceService
    - Example: `PlayerInventory.lua`
 
 2. **Create the Controller** (`src/server/controllers/`)
-   - Create a Script (`.server.lua`) that listens to RemoteEvents
+   - Create a Script (`.server.lua`) that listens to Bolt ReliableEvents
    - Validate incoming requests
    - Call Model methods to update state
    - Example: `InventoryController.server.lua`
@@ -272,7 +272,7 @@ Always start in this order:
    - Create a LocalScript (`.client.lua`) that targets tagged objects
    - Use CollectionService to find UI/Workspace elements
    - Provide immediate feedback for interactions
-   - Listen for state broadcasts and update visuals
+   - Observe state changes via Network.State.* and update visuals
    - Example: `InventoryView.client.lua`
 
 4. **Create Visual Elements in Studio**
@@ -280,14 +280,15 @@ Always start in this order:
    - Add CollectionService tags to elements the View will target
    - Example: Tag a ScreenGui with "InventoryUI"
 
-5. **Connect with RemoteEvents** (`src/shared/events/`)
-   - Define RemoteEvents as intent names
-   - Place in ReplicatedStorage via `src/shared/`
-   - Example: `RequestPurchaseItem`, `AttemptEquipWeapon`
+5. **Define Network Events** (`Network.luau`)
+   - Bolt events are eagerly registered at module load
+   - Network.Intent.* - Bolt ReliableEvents for user actions
+   - Network.State.* - Bolt RemoteProperties for model state
+   - Network.Actions.* - Action constants for type-safe validation
 
 ## Quick Reference: Adding New Components
 
-These checklists provide step-by-step guidance for adding new components to your MVC architecture. Each checklist explicitly includes updating the shared constants (IntentActions and StateEvents).
+These checklists provide step-by-step guidance for adding new components to your MVC architecture. Each checklist explicitly includes updating the Network.luau module (Network.Actions and event registration).
 
 ### Adding a New Model
 
@@ -298,9 +299,9 @@ These checklists provide step-by-step guidance for adding new components to your
 5. ✓ **Implement `.new()`** method with AbstractModel.new("ModelName", ownerId, scope)
 6. ✓ **Implement `.get()`** method using AbstractModel.getOrCreate()
 7. ✓ **Implement `.remove()`** method using AbstractModel.removeInstance()
-8. ✓ **Add business logic methods** that modify properties and call `self:fire("owner")` or `self:fire("all")`
-9. ✓ **Add to StateEvents.lua**:
-   - Add event name constant (e.g., `YourModel = { EventName = "YourModelStateChanged" }`)
+8. ✓ **Add business logic methods** that modify properties and call `self:syncState()`
+9. ✓ **Register state in Network.luau**:
+   - Add Bolt RemoteProperty registration (e.g., `Network.State.YourModel = Bolt.RemoteProperty(defaultState)`)
    - Add exported data type (e.g., `export type YourModelData = { ownerId: string, ... }`)
 10. ✓ **Test with ModelRunner** - Models are auto-discovered by PersistenceService
 
@@ -309,14 +310,14 @@ These checklists provide step-by-step guidance for adding new components to your
 ### Adding a New Controller
 
 1. ✓ **Decide what user intents** this controller will handle (e.g., "Purchase", "Equip", "Donate")
-2. ✓ **Add action constants to IntentActions.lua** FIRST:
-   - Add feature group (e.g., `YourFeature = { Action1 = "Action1", Action2 = "Action2" }`)
-   - Add exported type (e.g., `export type YourFeatureAction = "Action1" | "Action2"`)
+2. ✓ **Add action constants to Network.luau** FIRST:
+   - Add feature group to Network.Actions (e.g., `YourFeature = { Action1 = "Action1", Action2 = "Action2" }`)
+   - Add Bolt ReliableEvent registration (e.g., `Network.Intent.YourFeature = Bolt.ReliableEvent("YourFeatureIntent")`)
 3. ✓ **Create controller file** in `src/server/controllers/`
 4. ✓ **Extend AbstractController** with proper inheritance pattern
 5. ✓ **Define action handler functions** (if using lookup table pattern)
-6. ✓ **Create ACTIONS lookup table** mapping IntentActions constants to handler functions
-7. ✓ **Set up OnServerEvent listener** with typed action parameter (e.g., `action: IntentActions.YourFeatureAction`)
+6. ✓ **Create ACTIONS lookup table** mapping Network.Actions constants to handler functions
+7. ✓ **Set up OnServerEvent listener** with typed action parameter (e.g., `action: string`)
 8. ✓ **Add validation logic** (amount checks, permissions, anti-cheat)
 9. ✓ **Get model instance** using Model.get(ownerId)
 10. ✓ **Dispatch actions** using `self:dispatchAction(ACTIONS, action, player, model, ...)`
@@ -327,62 +328,59 @@ These checklists provide step-by-step guidance for adding new components to your
 ### Adding a New View
 
 1. ✓ **Decide which pattern**: A (pure client), B (intent-based), or C (state observation). See [VIEW_GUIDE.md](VIEW_GUIDE.md) for decision tree.
-2. ✓ **Verify IntentActions constants exist** (if sending intents - Pattern B)
-3. ✓ **Verify StateEvents constants exist** (if observing state - Pattern C)
+2. ✓ **Verify Network.Actions constants exist** (if sending intents - Pattern B)
+3. ✓ **Verify Network.State.* exists** (if observing state - Pattern C)
 4. ✓ **Create view file** in `src/client/views/` (name it `YourView.client.lua`)
 5. ✓ **Define tag constant** for CollectionService (e.g., `local TAG = "YourFeature"`)
 6. ✓ **Create setupInstance function** for initialization
 7. ✓ **Connect to user interactions** (buttons, prompts, proximity prompts, etc.)
-8. ✓ **Use IntentActions constants** when firing RemoteEvents (e.g., `remoteEvent:FireServer(IntentActions.YourFeature.Action)`)
-9. ✓ **Use StateEvents constants and types** when listening for state changes:
-   - Get event: `eventsFolder:WaitForChild(StateEvents.YourModel.EventName)`
-   - Type parameter: `function(data: StateEvents.YourModelData)`
-10. ✓ **Request initial state** after setting up listener (Pattern C only): `stateEvent:FireServer()`
-11. ✓ **Create UI in Roblox Studio** and tag with CollectionService
-12. ✓ **Test in Play mode** (F5 in Studio)
+8. ✓ **Use Network.Actions constants** when firing intents (e.g., `Network.Intent.YourFeature:FireServer(Network.Actions.YourFeature.Action)`)
+9. ✓ **Use Network.State and Observe()** when observing state changes:
+   - Observe state: `Network.State.YourModel:Observe(function(data) ... end)`
+   - Observe() fires immediately with current value - no need to request initial state
+10. ✓ **Create UI in Roblox Studio** and tag with CollectionService
+11. ✓ **Test in Play mode** (F5 in Studio)
 
 **See [VIEW_GUIDE.md](VIEW_GUIDE.md) for detailed examples.**
 
-### Updating IntentActions
+### Updating Network.Actions
 
 **When to update:** You need a new user action (button click, prompt trigger, purchase intent, etc.)
 
-1. ✓ **Open `src/shared/IntentActions.lua`**
-2. ✓ **Add new feature section** or add to existing section:
+1. ✓ **Open `Source/ReplicatedStorage/Network.luau`**
+2. ✓ **Register Bolt ReliableEvent** (if new feature):
+   ```lua
+   Network.Intent.YourFeature = Bolt.ReliableEvent("YourFeatureIntent")
+   ```
+3. ✓ **Add action constants** in Network.Actions:
    ```lua
    YourFeature = {
        ActionName = "ActionName",
    },
    ```
-3. ✓ **Add or update exported type**:
-   ```lua
-   -- New type:
-   export type YourFeatureAction = "ActionName"
-
-   -- Or extend existing type:
-   export type YourFeatureAction = "Action1" | "Action2" | "NewAction"
-   ```
 4. ✓ **Update controller** to use new action in ACTIONS table and dispatchAction call
-5. ✓ **Update view** to use new action constant when firing RemoteEvent
+5. ✓ **Update view** to use Network.Intent.YourFeature and Network.Actions constants
 
 **Naming conventions:**
 - ✅ Good: `PurchaseWeapon`, `EquipItem`, `Donate`, `BuyTreasure` (verb-based, intent-focused)
 - ❌ Bad: `SetInventory`, `Update`, `Click`, `Execute` (commands or too vague)
 
-**See [CONTROLLER_GUIDE.md](CONTROLLER_GUIDE.md) for more details on working with IntentActions.**
+**See [CONTROLLER_GUIDE.md](CONTROLLER_GUIDE.md) for more details on working with Network.Actions.**
 
-### Updating StateEvents
+### Updating Network.State
 
-**When to update:** You create a new model that broadcasts state to clients
+**When to update:** You create a new model that syncs state to clients
 
-1. ✓ **Open `src/shared/StateEvents.lua`**
-2. ✓ **Add event name constant**:
+1. ✓ **Open `Source/ReplicatedStorage/Network.luau`**
+2. ✓ **Register Bolt RemoteProperty**:
    ```lua
-   YourModel = {
-       EventName = "YourModelStateChanged",
-   },
+   Network.State.YourModel = Bolt.RemoteProperty({
+       ownerId = "",
+       property1 = defaultValue,
+       property2 = defaultValue,
+   })
    ```
-3. ✓ **Add exported data type** matching model properties:
+3. ✓ **Add exported data type** matching model properties (optional, for type safety):
    ```lua
    export type YourModelData = {
        ownerId: string,  -- Always include!
@@ -390,8 +388,8 @@ These checklists provide step-by-step guidance for adding new components to your
        property2: type,
    }
    ```
-4. ✓ **Use event name in model** - AbstractModel.new() automatically creates RemoteEvent using model name
-5. ✓ **Update views** to use StateEvents constants and types when observing state
+4. ✓ **Use in model** - Call `Network.registerState("YourModel", defaultState)` in AbstractModel.new()
+5. ✓ **Update views** to use Network.State.YourModel:Observe() when observing state
 
 **What to include in data type:**
 - ✅ Always: `ownerId: string` (required for filtering, even if not always used)
@@ -400,11 +398,11 @@ These checklists provide step-by-step guidance for adding new components to your
 - ❌ Don't include: Internal model state that clients never see
 - ❌ Don't include: Computed values that views calculate themselves
 
-**See [MODEL_GUIDE.md](MODEL_GUIDE.md) and [VIEW_GUIDE.md](VIEW_GUIDE.md) for more details on working with StateEvents.**
+**See [MODEL_GUIDE.md](MODEL_GUIDE.md) and [VIEW_GUIDE.md](VIEW_GUIDE.md) for more details on working with Network.State.**
 
 ## Tutorial: Adding a Complete Feature
 
-This tutorial walks through adding a complete "Weapon Shop" feature from scratch, demonstrating the full MVC flow and how IntentActions and StateEvents tie everything together.
+This tutorial walks through adding a complete "Weapon Shop" feature from scratch, demonstrating the full MVC flow and how Network.luau ties everything together with Bolt networking.
 
 ### Feature Requirements
 
@@ -430,58 +428,36 @@ Before writing code, decide:
 - Reuse `StatusBarView` (already observes InventoryStateChanged for gold display)
 - Create `WeaponShopView` to show weapons and handle purchase clicks
 
-**Intents:**
-- `PurchaseWeapon` action (user wants to buy a weapon)
+**Network Events:**
+- Add `Network.Intent.WeaponShop` - Bolt ReliableEvent for purchase actions
+- Add `Network.Actions.WeaponShop.PurchaseWeapon` - Action constant
+- Add `Network.State.WeaponShop` - Bolt RemoteProperty to broadcast purchases to all players
+- Use existing `Network.State.Inventory` (for gold updates)
 
-**State Events:**
-- Use existing `InventoryStateChanged` (for gold updates)
-- Add new `WeaponShopStateChanged` (to broadcast purchases to all players)
+### Step 2: Add Network Events
 
-### Step 2: Add IntentActions Constants
+**File:** `Source/ReplicatedStorage/Network.luau`
 
-**File:** `src/shared/IntentActions.lua`
-
-Add the new action constant for weapon purchases:
-
-```lua
-local IntentActions = {
-    -- ... existing actions ...
-    WeaponShop = {
-        PurchaseWeapon = "PurchaseWeapon",
-    },
-}
-
--- ... existing type exports ...
-export type WeaponShopAction = "PurchaseWeapon"
-
-return IntentActions
-```
-
-### Step 3: Add StateEvents Constants and Types
-
-**File:** `src/shared/StateEvents.lua`
-
-Add event name and data type for weapon shop broadcasts:
+Add the Bolt ReliableEvent and action constants:
 
 ```lua
-local StateEvents = {
-    -- ... existing events ...
-    WeaponShop = {
-        EventName = "WeaponShopStateChanged",
-    },
+-- Add to Network.Intent section
+Network.Intent.WeaponShop = Bolt.ReliableEvent("WeaponShopIntent")
+
+-- Add to Network.Actions section
+Network.Actions.WeaponShop = {
+    PurchaseWeapon = "PurchaseWeapon",
 }
 
--- ... existing type exports ...
-export type WeaponShopData = {
-    ownerId: string,  -- Always include (for Server-scoped, use "SERVER")
-    lastPurchase: string,  -- Weapon name
-    buyerName: string,  -- Player who bought it
-}
-
-return StateEvents
+-- Add to Network.State section (for broadcasting purchases)
+Network.State.WeaponShop = Bolt.RemoteProperty({
+    ownerId = "SERVER",
+    lastPurchase = "",
+    buyerName = "",
+})
 ```
 
-### Step 4: Create the WeaponShopModel
+### Step 3: Create the WeaponShopModel
 
 **File:** `src/server/models/server/WeaponShopModel.lua`
 
@@ -522,7 +498,7 @@ end
 function WeaponShopModel:recordPurchase(weaponName: string, playerName: string): ()
     self.lastPurchase = weaponName
     self.buyerName = playerName
-    self:fire("all")  -- Broadcast to all players
+    self:syncState()  -- Broadcast to all players (Server-scoped)
 end
 
 return WeaponShopModel
@@ -530,7 +506,7 @@ return WeaponShopModel
 
 **Key points:**
 - Server-scoped model (accessed via `WeaponShopModel.get("SERVER")`)
-- `fire("all")` broadcasts to all players
+- `syncState()` automatically broadcasts to all players for Server-scoped models
 - Tracks last purchase for demonstration purposes
 
 ### Step 5: Create the WeaponShopController
@@ -545,7 +521,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local AbstractController = require(script.Parent.AbstractController)
 local InventoryModel = require(script.Parent.Parent.models.user.InventoryModel)
 local WeaponShopModel = require(script.Parent.Parent.models.server.WeaponShopModel)
-local IntentActions = require(ReplicatedStorage.IntentActions)
+local Network = require(ReplicatedStorage.Network)
 
 local WeaponShopController = {}
 WeaponShopController.__index = WeaponShopController
@@ -578,7 +554,7 @@ local function purchaseWeapon(player: Player, inventory: any, weaponShop: any, w
 end
 
 local ACTIONS = {
-    [IntentActions.WeaponShop.PurchaseWeapon] = purchaseWeapon,
+    [Network.Actions.WeaponShop.PurchaseWeapon] = purchaseWeapon,
 }
 
 function WeaponShopController.new(): WeaponShopController
@@ -586,9 +562,9 @@ function WeaponShopController.new(): WeaponShopController
     setmetatable(self, WeaponShopController)
 
     -- Set up event listener
-    self.remoteEvent.OnServerEvent:Connect(function(
+    self.intentEvent.OnServerEvent:Connect(function(
         player: Player,
-        action: IntentActions.WeaponShopAction,
+        action: string,
         weaponName: string
     )
         -- Validate weapon name
@@ -612,7 +588,7 @@ return WeaponShopController
 ```
 
 **Key points:**
-- Uses IntentActions constants for type-safe action handling
+- Uses Network.Actions constants for type-safe action handling
 - Validates weapon name and price lookup
 - Gets both user-scoped (inventory) and server-scoped (shop) models
 - `spendGold()` returns boolean, so validation is built into model
@@ -628,19 +604,15 @@ return WeaponShopController
 local CollectionService = game:GetService("CollectionService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
-local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
-local StateEvents = require(ReplicatedStorage:WaitForChild("StateEvents"))
+local Network = require(ReplicatedStorage:WaitForChild("Network"))
 
 local TAG = "WeaponShop"
 
--- Get RemoteEvents
-local eventsFolder = ReplicatedStorage:WaitForChild("Events")
-local weaponShopRemote = eventsFolder:WaitForChild("WeaponShopController")
-local weaponShopStateChanged = eventsFolder:WaitForChild(StateEvents.WeaponShop.EventName)
-
 -- Listen for shop state changes (purchases by any player)
-weaponShopStateChanged.OnClientEvent:Connect(function(shopData: StateEvents.WeaponShopData)
-    print("SHOP: " .. shopData.buyerName .. " just bought a " .. shopData.lastPurchase .. "!")
+Network.State.WeaponShop:Observe(function(shopData)
+    if shopData.lastPurchase ~= "" then
+        print("SHOP: " .. shopData.buyerName .. " just bought a " .. shopData.lastPurchase .. "!")
+    end
 end)
 
 local function setupInstance(shopUI: ScreenGui)
@@ -657,17 +629,17 @@ local function setupInstance(shopUI: ScreenGui)
     -- Connect button clicks
     swordButton.Activated:Connect(function()
         print("Requesting to purchase Sword...")
-        weaponShopRemote:FireServer(IntentActions.WeaponShop.PurchaseWeapon, "Sword")
+        Network.Intent.WeaponShop:FireServer(Network.Actions.WeaponShop.PurchaseWeapon, "Sword")
     end)
 
     bowButton.Activated:Connect(function()
         print("Requesting to purchase Bow...")
-        weaponShopRemote:FireServer(IntentActions.WeaponShop.PurchaseWeapon, "Bow")
+        Network.Intent.WeaponShop:FireServer(Network.Actions.WeaponShop.PurchaseWeapon, "Bow")
     end)
 
     staffButton.Activated:Connect(function()
         print("Requesting to purchase Staff...")
-        weaponShopRemote:FireServer(IntentActions.WeaponShop.PurchaseWeapon, "Staff")
+        Network.Intent.WeaponShop:FireServer(Network.Actions.WeaponShop.PurchaseWeapon, "Staff")
     end)
 
     print("WeaponShopView initialized for:", shopUI:GetFullName())
@@ -685,9 +657,10 @@ end)
 ```
 
 **Key points:**
-- Uses IntentActions.WeaponShop.PurchaseWeapon for type-safe intent
-- Uses StateEvents.WeaponShop.EventName to get correct RemoteEvent
-- Listens for shop state changes (broadcasts from all purchases)
+- Uses Network.Actions.WeaponShop.PurchaseWeapon for type-safe intent
+- Uses Network.Intent.WeaponShop to fire intents to server
+- Observes shop state changes via Network.State.WeaponShop:Observe()
+- Observe() fires immediately with current state and on each update
 - Immediate feedback via print statements
 - StatusBarView (already exists) will show gold updates automatically
 
@@ -726,13 +699,13 @@ end)
 
 ### What You Learned
 
-✓ **IntentActions connects views to controllers** - Type-safe action constants prevent typos
-✓ **StateEvents connects models to views** - Type-safe data structures for state synchronization
+✓ **Network.Actions connects views to controllers** - Type-safe action constants prevent typos
+✓ **Network.State with Observe() connects models to views** - Reactive state synchronization via Bolt
 ✓ **Model scopes matter** - User-scoped (Inventory) vs Server-scoped (WeaponShop)
-✓ **Broadcast scopes matter** - fire("owner") for private data, fire("all") for public data
+✓ **Automatic scope detection** - syncState() automatically detects scope from model type
 ✓ **MVC separation** - Views don't validate, Controllers validate, Models are authoritative
 ✓ **Optimistic UI** - Immediate feedback (print) + wait for confirmation (gold update)
-✓ **Complete data flow** - User click → View intent → Controller validation → Model update → State broadcast → View update
+✓ **Complete data flow** - User click → Bolt ReliableEvent → Controller validation → Model update → Bolt RemoteProperty sync → Observe() callback → View update
 
 ### Next Steps
 
@@ -885,28 +858,29 @@ src/
 
 **Common causes:**
 
-1. **Event name mismatch**
-   - Check: Does your StateEvents constant match the model name?
-   - Fix: AbstractModel.new("ModelName", ...) creates a RemoteEvent named "ModelNameStateChanged"
-   - Example: Model name "Inventory" → Event name "InventoryStateChanged"
+1. **State property not registered**
+   - Check: Is Network.State.YourModel registered in Network.luau?
+   - Fix: Add `Network.State.YourModel = Bolt.RemoteProperty(defaultState)` in Network.luau
+   - Example: Model name "Inventory" → `Network.State.Inventory`
 
-2. **Listener set up after initial state broadcast**
-   - Check: Are you connecting OnClientEvent before the model fires?
-   - Fix: Always set up listeners BEFORE requesting initial state
-   - Pattern: `event.OnClientEvent:Connect(...) THEN event:FireServer()`
+2. **Observe() not called**
+   - Check: Are you using Network.State.YourModel:Observe(callback)?
+   - Fix: Use Observe() instead of OnClientEvent
+   - Pattern: `Network.State.YourModel:Observe(function(data) ... end)`
+   - Note: Observe() fires immediately with current value - no need to request initial state
 
 3. **Wrong ownerId filtering**
    - Check: Are you filtering by ownerId when you shouldn't?
-   - Fix: Models using fire("owner") already send only to that player - don't filter again!
+   - Fix: Bolt handles per-player filtering automatically for User-scoped models
    - See: StatusBarView.client.lua for example (no ownerId filtering needed)
 
-4. **Model not firing after changes**
-   - Check: Do your model methods call `self:fire("owner")` or `self:fire("all")`?
-   - Fix: Add `self:fire(scope)` after every property change
+4. **Model not syncing after changes**
+   - Check: Do your model methods call `self:syncState()`?
+   - Fix: Add `self:syncState()` after every property change
 
-5. **WaitForChild timeout**
-   - Check: Is the RemoteEvent being created? Check ReplicatedStorage → Events
-   - Fix: Ensure model is initialized (models auto-initialize via PersistenceService on player join)
+5. **Network module not loaded**
+   - Check: Can you require Network.luau successfully?
+   - Fix: Ensure Network.luau is in ReplicatedStorage and Rojo is syncing properly
 
 ### My Controller Isn't Receiving Intents
 
@@ -914,19 +888,19 @@ src/
 
 **Common causes:**
 
-1. **RemoteEvent name mismatch**
-   - Check: Does view use correct controller name?
-   - Fix: Controller "WeaponShopController" creates RemoteEvent named "WeaponShopController"
-   - View should use: `eventsFolder:WaitForChild("WeaponShopController")`
+1. **Intent event not registered**
+   - Check: Is Network.Intent.YourFeature registered in Network.luau?
+   - Fix: Add `Network.Intent.YourFeature = Bolt.ReliableEvent("YourFeatureIntent")` in Network.luau
+   - View should use: `Network.Intent.YourFeature:FireServer(...)`
 
-2. **IntentActions constant typo**
+2. **Network.Actions constant typo**
    - Check: Is the action string exactly matching?
-   - Fix: Use IntentActions constants in BOTH view and controller
-   - Example: `IntentActions.WeaponShop.PurchaseWeapon`
+   - Fix: Use Network.Actions constants in BOTH view and controller
+   - Example: `Network.Actions.WeaponShop.PurchaseWeapon`
 
 3. **Action not in ACTIONS table**
    - Check: Is the action constant mapped to a handler function?
-   - Fix: Add to ACTIONS table: `[IntentActions.Feature.Action] = handlerFunction`
+   - Fix: Add to ACTIONS table: `[Network.Actions.Feature.Action] = handlerFunction`
 
 4. **Controller not initialized**
    - Check: Is ControllerRunner creating your controller?
@@ -942,9 +916,9 @@ src/
 
 **Common causes:**
 
-1. **Model not calling fire()**
-   - Check: Do your model methods call `self:fire(scope)`?
-   - Fix: PersistenceService triggers on RemoteEvent fire - no fire means no save!
+1. **Model not calling syncState()**
+   - Check: Do your model methods call `self:syncState()`?
+   - Fix: PersistenceService triggers when syncState() is called - no sync means no save!
 
 2. **Server-scoped model expecting persistence**
    - Check: Is your model using "Server" scope?
@@ -955,9 +929,9 @@ src/
    - Check: Game Settings → Security → Enable Studio Access to API Services
    - Fix: Enable this setting and PublishToRoblox first
 
-4. **Properties not in getState()**
-   - Check: Does AbstractModel.getState() return all properties?
-   - Fix: Ensure all properties are included in the returned table
+4. **Properties not in _extractState()**
+   - Check: Does AbstractModel._extractState() return all properties?
+   - Fix: Ensure all public properties (without leading underscore) are included
 
 ### Type Checking Errors in Editor
 
@@ -966,18 +940,18 @@ src/
 **Common causes:**
 
 1. **Missing type exports**
-   - Check: Did you export the type from IntentActions/StateEvents?
-   - Fix: Add `export type YourFeatureAction = "Action1" | "Action2"`
+   - Check: Did you export the type from Network.luau?
+   - Fix: Add type exports if needed for additional type safety
 
 2. **Wrong type annotation**
    - Check: Are you using the correct module path?
-   - Fix: `IntentActions.FeatureName.ActionName` for constants
-   - Fix: `IntentActions.FeatureNameAction` for types
+   - Fix: `Network.Actions.FeatureName.ActionName` for constants
+   - Fix: Controller actions should use `action: string` type
 
 3. **Type mismatch in function parameters**
-   - Check: Does your typed parameter match the exported type?
-   - Fix: Controller: `action: IntentActions.FeatureAction`
-   - Fix: View: `data: StateEvents.ModelData`
+   - Check: Does your typed parameter match the expected type?
+   - Fix: Controller: `action: string`
+   - Fix: View Observe callback: `function(data) ... end` (Bolt handles typing)
 
 ### CollectionService Tag Not Found
 
@@ -1049,7 +1023,7 @@ src/
 5. **Verify structure with MCP**
    - Ask Claude to check object hierarchy
    - Verify attributes are set correctly
-   - Confirm RemoteEvents exist
+   - Confirm Network.luau is synced to ReplicatedStorage
 
 ## Why This Approach?
 

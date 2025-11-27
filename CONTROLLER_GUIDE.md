@@ -10,17 +10,17 @@ Controllers handle user intents from the client, validate them, and update Model
 
 All controllers in this project follow an inheritance pattern based on `AbstractController`:
 
-- **AbstractController**: Base class that automatically creates RemoteEvents and provides inheritance infrastructure
+- **AbstractController**: Base class that registers Bolt ReliableEvents via Network module and provides inheritance infrastructure
 - **Concrete Controllers** (e.g., CashMachineController): Extend AbstractController and implement specific business logic
 
 ## Data Flow
 
 ```
-Client (View) → RemoteEvent (Intent) → Controller (Validation) → Model (State Update)
+Client (View) → Bolt ReliableEvent (Intent) → Controller (Validation) → Model (State Update)
 ```
 
 Controllers are responsible for:
-- **Receiving** client intents via RemoteEvents
+- **Receiving** client intents via Bolt ReliableEvents
 - **Validating** requests (anti-cheat, permissions, game rules)
 - **Updating** models with validated data
 - **Never** directly manipulating Views or client state
@@ -31,16 +31,17 @@ Controllers are responsible for:
 
 All controllers inherit from `AbstractController.lua` which provides:
 
-- **`new(controllerName: string)`**: Constructor that creates the controller and its RemoteEvent, and prints initialization message
-- **`remoteEvent: RemoteEvent`**: Automatically created RemoteEvent for client-server communication
+- **`new(controllerName: string)`**: Constructor that creates the controller and gets its Bolt ReliableEvent from Network module
+- **`intentEvent: ReliableEvent`**: Bolt ReliableEvent obtained via Network.registerIntent() for client-server communication
 - **`dispatchAction(actionsTable, action, player, ...)`**: Validates and executes actions from an ACTIONS table, with automatic error handling
 
-**Automatic RemoteEvent Creation:**
+**Automatic Bolt Event Registration:**
+- All controller intents are eagerly registered in Network.luau at module load
+- AbstractController.new() gets the pre-existing event via Network.registerIntent()
 - Takes the controller name (e.g., "CashMachineController")
 - Removes "Controller" suffix
-- Adds "Intent" suffix
-- Creates `[Name]Intent` in `ReplicatedStorage/Shared/Events/`
-- Example: `CashMachineController` → `CashMachineIntent`
+- Returns the Bolt ReliableEvent from Network.Intent.[Name]
+- Example: `CashMachineController` → `Network.Intent.CashMachine`
 
 ### Step 2: Create Your Controller File
 
@@ -53,7 +54,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AbstractController = require(script.Parent.AbstractController)
 local YourModel = require(script.Parent.Parent.models.user.YourModel) -- or .server.YourModel
-local IntentActions = require(ReplicatedStorage.IntentActions)
+local Network = require(ReplicatedStorage.Network)
 
 local YourController = {}
 YourController.__index = YourController
@@ -66,7 +67,7 @@ function YourController.new(): YourController
 	setmetatable(self, YourController)
 
 	-- Set up event listener with strongly-typed action parameter
-	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.YourFeatureAction, ...)
+	self.intentEvent.OnServerEvent:Connect(function(player: Player, action: string, ...)
 		-- Check permissions/anti-cheat
 		if not canPlayerDoThis(player) then
 			warn("Unauthorized action attempt from " .. player.Name)
@@ -79,10 +80,10 @@ function YourController.new(): YourController
 		-- For Server-scoped models: get shared instance
 		-- local model = YourModel.get("SERVER")
 
-		-- Use IntentActions constants instead of magic strings
-		if action == IntentActions.YourFeature.SomeAction then
+		-- Use Network.Actions constants instead of magic strings
+		if action == Network.Actions.YourFeature.SomeAction then
 			model:performAction(...)
-		elseif action == IntentActions.YourFeature.AnotherAction then
+		elseif action == Network.Actions.YourFeature.AnotherAction then
 			model:performOtherAction(...)
 		end
 	end)
@@ -129,7 +130,8 @@ end
 **Important**:
 - Pass your controller's name to `AbstractController.new()`
 - Cast to `any` to allow metatable manipulation
-- Set up event listeners in the constructor
+- Set up event listeners using `self.intentEvent` (Bolt ReliableEvent from Network module)
+- The Network.Intent.[YourController] event is already registered eagerly at module load
 
 ### Step 4: Initialize Your Controller
 
@@ -167,18 +169,20 @@ The `CashMachineController.lua` file demonstrates a complete controller implemen
 - Updates InventoryModel based on validated requests
 - Prints transaction results for debugging
 
-### RemoteEvent Created:
-- Name: `CashMachineIntent`
-- Location: `ReplicatedStorage/Shared/Events/CashMachineIntent`
+### Bolt ReliableEvent Used:
+- Name: `Network.Intent.CashMachine`
+- Registered eagerly in Network.luau at module load
+- Accessed via `Network.registerIntent()` in AbstractController
 
 ### Event Signature:
 ```lua
-CashMachineIntent:FireServer(action: string, amount: number)
+Network.Intent.CashMachine:FireServer(action: string, amount: number)
 ```
 
 ### Testing:
-See `src/client/CashMachineTest.client.lua` for a complete example of how to:
-- Wait for the RemoteEvent to be created
+Client-side code can immediately use the Bolt event:
+- Network.Intent.CashMachine is available as soon as Network module loads
+- No need to wait for event creation - it's eagerly registered
 - Fire requests with proper parameters
 - Test different actions
 
@@ -187,26 +191,23 @@ See `src/client/CashMachineTest.client.lua` for a complete example of how to:
 - **AbstractController**: `src/server/controllers/AbstractController.lua`
 - **Your Controllers**: `src/server/controllers/YourController.lua`
 - **Controller Initialization**: `src/server/controllers/ControllerRunner.server.lua`
-- **RemoteEvents** (auto-created): `ReplicatedStorage/Shared/Events/`
+- **Network Module**: `src/ReplicatedStorage/Network.luau` (Bolt events eagerly registered here)
 
 ## Client-Side Usage
 
-From a LocalScript (View), fire intents to your controller using IntentActions constants:
+From a LocalScript (View), fire intents to your controller using Network module:
 
 ```lua
 --!strict
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Import shared constants
-local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
+-- Import Network module (contains all Bolt events)
+local Network = require(ReplicatedStorage:WaitForChild("Network"))
 
--- Wait for the remote event
-local eventsFolder = ReplicatedStorage:WaitForChild("Events")
-local yourIntent = eventsFolder:WaitForChild("YourIntent") :: RemoteEvent
-
--- Fire an intent with typed constant (not magic string)
-yourIntent:FireServer(IntentActions.YourFeature.ActionName, arg1, arg2)
+-- Use the pre-registered Bolt ReliableEvent
+-- No need to wait - it's already available!
+Network.Intent.YourController:FireServer(Network.Actions.YourFeature.ActionName, arg1, arg2)
 ```
 
 ## Best Practices
@@ -223,8 +224,8 @@ Use intent-based names that describe what the player is **trying** to do, not co
 **NEVER** trust the client. Always validate:
 
 ```lua
--- Validate action (use IntentActions constants)
-if action ~= IntentActions.YourFeature.ValidAction1 and action ~= IntentActions.YourFeature.ValidAction2 then
+-- Validate action (use Network.Actions constants)
+if action ~= Network.Actions.YourFeature.ValidAction1 and action ~= Network.Actions.YourFeature.ValidAction2 then
 	warn("Invalid action: " .. tostring(action))
 	return
 end
@@ -263,8 +264,8 @@ Follow the "fail fast" philosophy:
 
 **Use `error()`** for configuration issues:
 ```lua
-if not self.remoteEvent then
-	error("RemoteEvent not created for " .. controllerName)
+if not self.intentEvent then
+	error("Bolt ReliableEvent not registered for " .. controllerName)
 end
 ```
 
@@ -281,24 +282,24 @@ end
 Always use `--!strict` and type all parameters with the most specific types available:
 
 ```lua
--- Use the exported action types from IntentActions for compile-time safety
-self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.CashMachineAction, amount: number)
-	-- Now Luau knows action can ONLY be "Withdraw" or "Deposit"
-	-- Provides autocomplete and catches invalid action strings at compile-time
+-- Type the action parameter (Network.Actions provides constants)
+self.intentEvent.OnServerEvent:Connect(function(player: Player, action: string, amount: number)
+	-- Use Network.Actions constants for validation
+	-- Runtime validation via ACTIONS table ensures security
 end)
 ```
 
 ### 6. Action Patterns
 
-Use action-based patterns for multiple operations with IntentActions constants:
+Use action-based patterns for multiple operations with Network.Actions constants:
 
 ```lua
--- Use IntentActions constants instead of magic strings
-if action == IntentActions.CashMachine.Withdraw then
+-- Use Network.Actions constants instead of magic strings
+if action == Network.Actions.CashMachine.Withdraw then
 	model:addGold(amount)
-elseif action == IntentActions.CashMachine.Deposit then
+elseif action == Network.Actions.CashMachine.Deposit then
 	model:addGold(-amount)
-elseif action == IntentActions.CashMachine.Transfer then
+elseif action == Network.Actions.CashMachine.Transfer then
 	model:transferGold(targetPlayer, amount)
 else
 	warn("Unknown action: " .. action)
@@ -360,7 +361,7 @@ function PurchaseController.new(): PurchaseController
 	local self = AbstractController.new("PurchaseController") :: any
 	setmetatable(self, PurchaseController)
 
-	self.remoteEvent.OnServerEvent:Connect(function(player: Player, itemId: string)
+	self.intentEvent.OnServerEvent:Connect(function(player: Player, itemId: string)
 		-- Validate and process purchase
 		local shop = ShopModel.get(tostring(player.UserId))
 		shop:purchaseItem(player, itemId)
@@ -376,24 +377,24 @@ For controllers handling multiple related actions:
 
 ```lua
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local IntentActions = require(ReplicatedStorage.IntentActions)
+local Network = require(ReplicatedStorage.Network)
 
 function InventoryController.new(): InventoryController
 	local self = AbstractController.new("InventoryController") :: any
 	setmetatable(self, InventoryController)
 
-	-- Use strongly-typed action parameter for compile-time safety
-	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.InventoryAction, ...)
+	-- Use Network.Actions constants for type-safe validation
+	self.intentEvent.OnServerEvent:Connect(function(player: Player, action: string, ...)
 		local inventory = InventoryModel.get(tostring(player.UserId))
 
-		-- Use IntentActions constants
-		if action == IntentActions.Inventory.Equip then
+		-- Use Network.Actions constants
+		if action == Network.Actions.Inventory.Equip then
 			local itemId = ...
 			inventory:equipItem(player, itemId)
-		elseif action == IntentActions.Inventory.Unequip then
+		elseif action == Network.Actions.Inventory.Unequip then
 			local slot = ...
 			inventory:unequipSlot(player, slot)
-		elseif action == IntentActions.Inventory.Drop then
+		elseif action == Network.Actions.Inventory.Drop then
 			local itemId = ...
 			inventory:dropItem(player, itemId)
 		else
@@ -407,13 +408,13 @@ end
 
 ### Multi-Action Controller (lookup table pattern - RECOMMENDED)
 
-For better scalability and maintainability, use named functions with a lookup table and IntentActions constants:
+For better scalability and maintainability, use named functions with a lookup table and Network.Actions constants:
 
 ```lua
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local AbstractController = require(script.Parent.AbstractController)
 local InventoryModel = require(script.Parent.Parent.models.user.InventoryModel)
-local IntentActions = require(ReplicatedStorage.IntentActions)
+local Network = require(ReplicatedStorage.Network)
 
 -- Define action functions at module level
 local function withdraw(inventory: any, amount: number, player: Player)
@@ -426,18 +427,18 @@ local function deposit(inventory: any, amount: number, player: Player)
 	print(player.Name .. " deposited " .. amount .. " gold. New balance: " .. inventory.gold)
 end
 
--- Map IntentActions constants to functions
+-- Map Network.Actions constants to functions
 local ACTIONS = {
-	[IntentActions.CashMachine.Withdraw] = withdraw,
-	[IntentActions.CashMachine.Deposit] = deposit,
+	[Network.Actions.CashMachine.Withdraw] = withdraw,
+	[Network.Actions.CashMachine.Deposit] = deposit,
 }
 
 function CashMachineController.new(): CashMachineController
 	local self = AbstractController.new("CashMachineController") :: any
 	setmetatable(self, CashMachineController)
 
-	-- Use strongly-typed action parameter for compile-time safety
-	self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.CashMachineAction, amount: number)
+	-- Use Network.Actions constants for validation
+	self.intentEvent.OnServerEvent:Connect(function(player: Player, action: string, amount: number)
 		-- Validate amount
 		if amount <= 0 then
 			warn("Invalid amount received from " .. player.Name .. ": " .. tostring(amount))
@@ -455,7 +456,7 @@ function CashMachineController.new(): CashMachineController
 end
 ```
 
-**Benefits of named function + lookup table + IntentActions pattern:**
+**Benefits of named function + lookup table + Network.Actions pattern:**
 - Easy to add new actions - define the function and add it to the table
 - Each action is a named, reusable function (better for testing and debugging)
 - Clean separation between validation and business logic
@@ -463,14 +464,14 @@ end
 - Consistent code organization across controllers
 - AbstractController's `dispatchAction` method handles action validation automatically
 - **Type-safe action strings** - no magic strings, prevents typos
-- **Single source of truth** - all actions defined in IntentActions module
+- **Single source of truth** - all actions defined in Network module
 
 ### Anti-Cheat Integration
 
 Add anti-cheat checks in your validation:
 
 ```lua
-self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: string, targetPosition: Vector3)
+self.intentEvent.OnServerEvent:Connect(function(player: Player, action: string, targetPosition: Vector3)
 	-- Distance check
 	local character = player.Character
 	if not character then return end
@@ -574,99 +575,95 @@ yourIntent:FireServer("TestAction", testData)
 6. Views receive broadcast and update UI
 ```
 
-### Shared Constants (IntentActions)
+### Shared Constants (Network.Actions)
 
-All intent action strings are centralized in `src/shared/IntentActions.lua`:
+All intent action strings are centralized in `Network.luau`:
 
 **In Views (Client):**
 ```lua
-local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
-cashMachineIntent:FireServer(IntentActions.CashMachine.Withdraw, amount)
+local Network = require(ReplicatedStorage:WaitForChild("Network"))
+Network.Intent.CashMachine:FireServer(Network.Actions.CashMachine.Withdraw, amount)
 ```
 
 **In Controllers (Server):**
 ```lua
-local IntentActions = require(ReplicatedStorage.IntentActions)
+local Network = require(ReplicatedStorage.Network)
 
--- Use exported types for strong typing
+-- Use Network.Actions constants for validation
 local ACTIONS = {
-	[IntentActions.CashMachine.Withdraw] = withdraw,
-	[IntentActions.CashMachine.Deposit] = deposit,
+	[Network.Actions.CashMachine.Withdraw] = withdraw,
+	[Network.Actions.CashMachine.Deposit] = deposit,
 }
 
--- Type the action parameter with the exported type
-self.remoteEvent.OnServerEvent:Connect(function(player: Player, action: IntentActions.CashMachineAction, ...)
-	-- Now Luau knows action can ONLY be "Withdraw" or "Deposit"
+-- Type the action parameter
+self.intentEvent.OnServerEvent:Connect(function(player: Player, action: string, ...)
+	-- Runtime validation via ACTIONS table ensures security
 end)
 ```
 
-**Exported Types:**
-IntentActions.lua exports union types for each feature:
+**Action Constants:**
+Network.Actions provides constants for each feature:
 ```lua
-export type CashMachineAction = "Withdraw" | "Deposit"
-export type BazaarAction = "BuyTreasure"
-export type ShrineAction = "Donate"
+Network.Actions.CashMachine.Withdraw = "Withdraw"
+Network.Actions.CashMachine.Deposit = "Deposit"
+Network.Actions.Bazaar.BuyTreasure = "BuyTreasure"
+Network.Actions.Shrine.Donate = "Donate"
 ```
 
 **Benefits:**
-- **Compile-time type safety** - prevents typos causing runtime errors
-- **Strong typing** - action parameters are constrained to valid values only
-- **Autocomplete support** - your IDE knows which actions are valid
-- **Single source of truth** for all action strings
+- **No magic strings** - centralized constants prevent typos
+- **Runtime security** - ACTIONS table lookup validates client input
 - **Easy refactoring** - change in one place, affects both views and controllers
-- **Self-documenting code** - developers can see valid actions from the type
-- **No more magic strings** scattered across the codebase
+- **Self-documenting code** - developers can see valid actions from constants
+- **Single source of truth** - all networking in Network module
+- **Type-safe at runtime** - invalid actions rejected by dispatch logic
 
-## Working with IntentActions
+## Working with Network.Actions
 
-When creating a new controller, you need to add action constants to IntentActions for type-safe communication between views and controllers.
+When creating a new controller, you need to add action constants to the Network module for consistent communication between views and controllers.
 
-### What are IntentActions?
+### What is Network.Actions?
 
-IntentActions is a centralized module (`src/shared/IntentActions.lua`) that provides:
+Network.Actions is part of the centralized Network module (`src/ReplicatedStorage/Network.luau`) that provides:
 - **Action constants** - Single source of truth for all user intent strings
-- **Exported action types** - Type-safe action parameters for controllers
-- **Complete MVC type safety** - From view through controller
+- **Intent events** - Bolt ReliableEvents for client-server communication
+- **State synchronization** - Bolt RemoteProperties for model state
+- **Complete networking** - All game networking in one module
 
 ### When to Add New Actions
 
-Add new actions to IntentActions when:
+Add new actions to Network.Actions when:
 - ✅ You create a new controller that handles user intents
 - ✅ You're adding new functionality to an existing controller
 - ✅ A view needs to send a new type of user intent to the server
 
 ### Step-by-Step: Adding New Actions
 
-**1. Open `src/shared/IntentActions.lua`**
+**1. Open `src/ReplicatedStorage/Network.luau`**
 
-**2. Add action constants:**
+**2. Add Bolt ReliableEvent registration:**
 
-Group related actions by feature:
+Register the intent event eagerly at module load:
 
 ```lua
-local IntentActions = {
-    -- ... existing actions ...
-    YourFeature = {
-        ActionName = "ActionName",
-        AnotherAction = "AnotherAction",
-    },
+-- Eager Intent Registration
+Network.Intent.YourFeature = Bolt.ReliableEvent("YourFeatureIntent")
+```
+
+**3. Add action constants:**
+
+Group related actions by feature in the Actions table:
+
+```lua
+Network.Actions.YourFeature = {
+    ActionName = "ActionName",
+    AnotherAction = "AnotherAction",
 }
 ```
 
-**3. Add exported type:**
+**4. That's it!**
 
-Create a union type of all action strings:
-
-```lua
--- ... existing type exports ...
-export type YourFeatureAction = "ActionName" | "AnotherAction"
-```
-
-**4. Return the module:**
-
-```lua
-return IntentActions
-```
+The Network module is already returned - both the intent event and action constants are now available throughout your codebase.
 
 ### Action Naming Conventions
 

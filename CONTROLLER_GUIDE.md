@@ -306,6 +306,148 @@ else
 end
 ```
 
+## CRITICAL: Parameter Order and Alignment
+
+### Parameter Order Rule
+
+**ALL action handler functions MUST follow this parameter order:**
+
+```lua
+local function actionName({allModels}, {allActionParams}, player: Player)
+    -- player is ALWAYS the last parameter
+end
+```
+
+**Why**: AbstractController.dispatchAction signature is:
+```lua
+function AbstractController:dispatchAction(actionsTable, action, player, ...)
+    actionFunc(...)  -- passes everything AFTER player
+end
+```
+
+When you call:
+```lua
+self:dispatchAction(ACTIONS, action, player, inventory, amount, player)
+                                      ^       ^^^^^^^^^^^^^^^^^^^^^^^^^
+                                      |              These become ...
+                                  For validation    Passed to action handler
+```
+
+The variadic `...` is `inventory, amount, player` - so action handlers receive these in order.
+
+### Parameter Alignment Rule
+
+**ALL action handlers in a controller MUST accept the SAME parameters in the SAME order.**
+
+❌ **WRONG** (misaligned parameters):
+```lua
+-- Action A expects 2 params
+local function withdraw(inventory: any, player: Player)
+    -- ...
+end
+
+-- Action B expects 3 params
+local function transfer(inventory: any, targetId: string, player: Player)
+    -- ...
+end
+
+-- dispatchAction call tries to be clever
+self:dispatchAction(ACTIONS, action, player, inventory, player)  -- Wrong!
+```
+
+**Problem**: You can't pass different parameters to different actions with one dispatchAction call.
+
+✅ **CORRECT** (aligned parameters):
+```lua
+-- ALL actions accept ALL parameters (union of all params)
+local function withdraw(inventory: any, targetId: string, player: Player)
+    -- targetId is unused here, but MUST be in signature for alignment
+    inventory:addGold(amount)
+end
+
+local function transfer(inventory: any, targetId: string, player: Player)
+    -- Uses all parameters
+    inventory:transferGold(targetId, amount)
+end
+
+-- Single dispatchAction call works for both
+self:dispatchAction(ACTIONS, action, player, inventory, targetId, player)
+```
+
+### Example from ThiefController
+
+**Initial (BROKEN) implementation:**
+```lua
+-- Different signatures = misalignment
+local function stealFromBazaar(player: Player, inventory: any)
+    inventory:addTreasure(1)
+end
+
+local function stealFromShrine(player: Player, inventory: any, shrine: any)
+    shrine:removeTreasure(1)
+    inventory:addTreasure(1)
+end
+
+-- This call passes: inventory, shrine, player
+self:dispatchAction(ACTIONS, action, player, inventory, shrine, player)
+
+-- stealFromBazaar receives: inventory, shrine
+-- So inventory → first param, shrine → second param (assigned to player!)
+-- Result: player.Name is nil because it's actually the shrine object
+```
+
+**Fixed implementation:**
+```lua
+-- Same signature = proper alignment
+local function stealFromBazaar(inventory: any, shrine: any, player: Player)
+    -- shrine is unused, but MUST be present for alignment
+    inventory:addTreasure(1)
+    print(player.Name .. " stole from bazaar")  -- Now works!
+end
+
+local function stealFromShrine(inventory: any, shrine: any, player: Player)
+    shrine:removeTreasure(1)
+    inventory:addTreasure(1)
+    print(player.Name .. " stole from shrine")
+end
+
+-- All handlers receive: inventory, shrine, player
+self:dispatchAction(ACTIONS, action, player, inventory, shrine, player)
+```
+
+### Quick Reference
+
+**Action Handler Signature Pattern:**
+```lua
+local function actionName(
+    model1: any,      -- All models used by ANY action
+    model2: any,      -- (even if this action doesn't use them)
+    param1: string,   -- All parameters from ANY action
+    param2: number,   -- (even if this action doesn't use them)
+    player: Player    -- ALWAYS last
+)
+```
+
+**dispatchAction Call Pattern:**
+```lua
+self:dispatchAction(
+    ACTIONS,          -- Action lookup table
+    action,           -- Action string (from Network.Actions)
+    player,           -- For validation in dispatchAction
+    model1,           -- All models
+    model2,
+    param1,           -- All parameters
+    param2,
+    player            -- MUST appear twice! Once for validation, once for handlers
+)
+```
+
+**Remember:**
+1. Player is ALWAYS the last parameter in action handlers
+2. All action handlers accept the SAME parameters (union of all needs)
+3. Player appears TWICE in dispatchAction call
+4. Unused parameters are okay - alignment is critical
+
 ## Common Patterns
 
 ### Decision Tree: Choosing Controller Action Pattern

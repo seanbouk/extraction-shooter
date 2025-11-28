@@ -137,6 +137,37 @@ For **Action: {ActionName}({parameters})**, which validation checks are needed?
 
 I'll generate appropriate validation code for your selections.
 
+### Step 4.5: Parameter Alignment (Important!)
+
+**CRITICAL**: All action handlers in a controller must accept the SAME parameters in the SAME order, even if some actions don't use all parameters.
+
+**Why**: The `dispatchAction` method passes the same arguments to all action handlers. If handlers have different signatures, parameters will be misaligned.
+
+**Example:**
+If Action A needs `(inventory, player)` and Action B needs `(inventory, shrine, player)`:
+- ❌ WRONG: Different signatures cause misalignment
+- ✅ CORRECT: Both must accept `(inventory, shrine, player)` even if Action A doesn't use `shrine`
+
+**Pattern:**
+```lua
+-- Both actions accept ALL parameters
+local function actionA(inventory: any, shrine: any, player: Player)
+    -- shrine is unused here, but MUST be in signature
+    inventory:doSomething()
+end
+
+local function actionB(inventory: any, shrine: any, player: Player)
+    -- Uses all parameters
+    shrine:doSomething()
+    inventory:doSomethingElse()
+end
+
+-- dispatchAction passes same args to both
+self:dispatchAction(ACTIONS, action, player, inventory, shrine, player)
+```
+
+I will ensure all action handlers accept the union of ALL parameters needed by ANY action in the controller.
+
 ### Step 5: Review and Confirm
 
 I'll display a comprehensive summary showing:
@@ -227,15 +258,15 @@ export type {ControllerName} = typeof(setmetatable({}, {ControllerName})) & Abst
 	{actionName} - {Action purpose}
 
 	Parameters:
-	  - player: Player - The player performing the action
 	  - {modelName}: {ModelType} - {Model description}
 	  - {param1}: {type} - {Parameter description}
 	  [Repeat for each parameter]
+	  - player: Player - The player performing the action (always last)
 
 	Validation:
 	  - {List of validation checks being performed}
 ]]
-local function {actionName}(player: Player, {modelInstances}, {actionParameters})
+local function {actionName}({modelInstances}, {actionParameters}, player: Player)
 	-- Action-specific validation
 	{validationCode}
 
@@ -273,7 +304,7 @@ function {ControllerName}:executeAction(
 	{modelAcquisitionCode}
 
 	-- Dispatch to action handler
-	self:dispatchAction(ACTIONS, action, player, {modelInstancesAndParameters})
+	self:dispatchAction(ACTIONS, action, player, {modelInstancesAndParameters}, player)
 end
 
 function {ControllerName}.new(): {ControllerName}

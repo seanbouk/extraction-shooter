@@ -23,10 +23,9 @@ local Network = require(ReplicatedStorage.Network)
 local SlashCommandService = {}
 
 local MIN_RANK = 200
--- TEMPORARY WORKAROUND: Bolt uses U8 for string length encoding (255 byte max).
--- If Bolt is updated to use U16 or larger, this limit can be increased or removed.
--- See Bolt.luau line 554: buffer.writeu8(self.Buffer, self.Cursor, stringLength)
-local MAX_MESSAGE_LENGTH = 250 -- Safe limit under Bolt's 255-byte U8 string length maximum
+-- Maximum message length for slash command responses
+-- Bolt supports up to 32KB strings, but we set a reasonable limit
+local MAX_MESSAGE_LENGTH = 30000 -- ~30KB, well under Bolt's 32,767 byte maximum
 
 local userModels: { [string]: any } = {}
 local serverModels: { [string]: any } = {}
@@ -42,37 +41,13 @@ local function sendChatMessage(player: Player, message: string): ()
 		return
 	end
 
-	-- If message fits in one chunk, send it directly
-	if #message <= MAX_MESSAGE_LENGTH then
-		Network.State.SlashCommand:SetFor(player, { message = message })
-		return
+	-- Truncate if message exceeds maximum length
+	if #message > MAX_MESSAGE_LENGTH then
+		message = string.sub(message, 1, MAX_MESSAGE_LENGTH) .. "\n...(truncated)"
+		warn(`[SlashCommandService] Message truncated for {player.Name} (exceeded {MAX_MESSAGE_LENGTH} bytes)`)
 	end
 
-	-- Split long messages by line breaks to avoid breaking mid-line
-	local lines = string.split(message, "\n")
-	local currentChunk = ""
-
-	for _, line in lines do
-		local testChunk = currentChunk == "" and line or currentChunk .. "\n" .. line
-
-		if #testChunk > MAX_MESSAGE_LENGTH then
-			-- Send current chunk if it's not empty
-			if currentChunk ~= "" then
-				Network.State.SlashCommand:SetFor(player, { message = currentChunk })
-				task.wait(0.05) -- Small delay between messages
-			end
-
-			-- Start new chunk with current line
-			currentChunk = line
-		else
-			currentChunk = testChunk
-		end
-	end
-
-	-- Send remaining chunk
-	if currentChunk ~= "" then
-		Network.State.SlashCommand:SetFor(player, { message = currentChunk })
-	end
+	Network.State.SlashCommand:SetFor(player, { message = message })
 end
 
 local function hasPermission(player: Player): boolean

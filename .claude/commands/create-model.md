@@ -17,6 +17,15 @@ I'll guide you through creating a new Roblox model that follows this project's A
   - Server models → `Source/ServerScriptService/models/server/`
 - **Auto-discovery**: ModelRunner automatically discovers and initializes models (no manual registration needed)
 
+## Reference Files
+
+Before generating code, I will read these stable reference files to ensure accuracy:
+- `Source/ServerScriptService/models/AbstractModel.lua` - Base class pattern and required methods
+- `Source/ReplicatedStorage/Network.luau` - Network state structure and type exports
+- `MODEL_GUIDE.md` - Complete model documentation with examples and patterns
+
+These core files contain the exact patterns, type definitions, and conventions to follow.
+
 ## Interactive Model Creation Wizard
 
 Let's begin creating your model step by step!
@@ -63,9 +72,41 @@ Based on the properties you've defined, I'll:
 ### Step 5: Generation
 
 I will:
-1. ✅ Generate complete model file with all methods
-2. ✅ Add Network state definition to Network.luau
-3. ✅ Provide testing instructions
+1. ✅ Read reference files to understand the exact pattern
+2. ✅ Generate complete model file following the pattern exactly
+3. ✅ Read Network.luau to understand state structure
+4. ✅ Add Network state definition in alphabetical order
+5. ✅ Add type export after existing state types
+6. ✅ Provide testing instructions
+
+---
+
+## Implementation Details (Internal)
+
+When generating the model, I will:
+
+1. **Read reference files**:
+   - Use Read tool on `Source/ServerScriptService/models/AbstractModel.lua` to understand the base class API
+   - Read `MODEL_GUIDE.md` for complete pattern examples and conventions
+   - Read `Source/ReplicatedStorage/Network.luau` to understand state structure
+   - Understand: inheritance setup, type definitions, .new()/.get()/.remove() pattern
+   - Note the syncState() calls in all state-modifying methods
+
+2. **Generate model file** at correct location:
+   - User scope: `Source/ServerScriptService/models/user/{ModelName}.lua`
+   - Server scope: `Source/ServerScriptService/models/server/{ModelName}.lua`
+
+3. **Edit Network.luau**:
+   - Read current file first
+   - Insert state definition in States object (alphabetically)
+   - Insert type export in type exports section (alphabetically)
+   - Use model name without "Model" suffix for state name (e.g., InventoryModel → Inventory)
+
+4. **Validation during generation**:
+   - Ensure all properties initialized in .new()
+   - All state-modifying methods call self:syncState()
+   - Type definitions include & AbstractModel.AbstractModel
+   - Proper --!strict pragma at top
 
 ---
 

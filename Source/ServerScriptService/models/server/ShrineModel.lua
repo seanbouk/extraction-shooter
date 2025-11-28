@@ -37,4 +37,13 @@ function ShrineModel:donate(playerUserId: string, amount: number): ()
 	self:syncState() -- Automatically broadcasts to all (Server scope)
 end
 
+function ShrineModel:removeTreasure(amount: number): boolean
+	if self.treasure >= amount then
+		self.treasure -= amount
+		self:syncState() -- Automatically broadcasts to all (Server scope)
+		return true
+	end
+	return false
+end
+
 return ShrineModel

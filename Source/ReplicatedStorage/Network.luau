@@ -38,8 +38,8 @@ local NetworkBuilder = require(script.Parent.NetworkBuilder)
 -- Network Configuration: Single source of truth for all controllers and state
 local NetworkConfig = {
 	Controllers = {
-		CashMachine = { "Withdraw", "Deposit" },
 		Bazaar = { "BuyTreasure" },
+		CashMachine = { "Withdraw", "Deposit" },
 		Shrine = { "Donate" },
 		SlashCommand = {},  -- No actions, just the intent
 	},
@@ -73,8 +73,8 @@ local Network = NetworkBuilder.build(NetworkConfig, Bolt)
 -- ============================================================================
 
 -- Action Type Exports (manually defined for type safety)
-export type CashMachineAction = "Withdraw" | "Deposit"
 export type BazaarAction = "BuyTreasure"
+export type CashMachineAction = "Withdraw" | "Deposit"
 export type ShrineAction = "Donate"
 
 -- State Type Exports (manually defined for type safety)

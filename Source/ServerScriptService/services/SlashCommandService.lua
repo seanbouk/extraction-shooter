@@ -16,9 +16,11 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local TextChatService = game:GetService("TextChatService")
 
 local Network = require(ReplicatedStorage.Network)
+local AbstractModel = require(ServerScriptService.models.AbstractModel)
 
 local SlashCommandService = {}
 
@@ -29,6 +31,7 @@ local MAX_MESSAGE_LENGTH = 30000 -- ~30KB, well under Bolt's 32,767 byte maximum
 
 local userModels: { [string]: any } = {}
 local serverModels: { [string]: any } = {}
+local entityModels: { [string]: { class: any, modelName: string } } = {}
 local controllers: { [string]: { instance: any, remoteEvent: RemoteEvent, originalName: string } } = {}
 
 local commandRemote: RemoteEvent = nil
@@ -172,6 +175,20 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 			helpText ..= "\n"
 		end
 
+		local entityModelNames = {}
+		for name, _ in entityModels do
+			table.insert(entityModelNames, name)
+		end
+		table.sort(entityModelNames)
+
+		if #entityModelNames > 0 then
+			helpText ..= "ENTITY MODELS (multiple per player):\n"
+			for _, name in entityModelNames do
+				helpText ..= `  /{name}\n`
+			end
+			helpText ..= "\n"
+		end
+
 		local controllerNames = {}
 		for name, _ in controllers do
 			table.insert(controllerNames, name)
@@ -197,13 +214,38 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 		local target = targetName:lower()
 
 		local modelClass = userModels[target] or serverModels[target]
+		if not modelClass then
+			local entityInfo = entityModels[target]
+			if entityInfo then
+				modelClass = entityInfo.class
+			end
+		end
+
 		if modelClass then
 			local isUserModel = userModels[target] ~= nil
-			local scope = isUserModel and "USER" or "SERVER"
+			local entityInfo = entityModels[target]
+			local isEntityModel = entityInfo ~= nil
+			local scope = isUserModel and "USER" or (isEntityModel and "ENTITY" or "SERVER")
 
 			local modelInstance
 			if isUserModel then
 				modelInstance = modelClass.get(tostring(player.UserId))
+			elseif isEntityModel then
+				-- For Entity models, get any instance to show available methods
+				local instances = AbstractModel.getAllInstances(entityInfo.modelName)
+				local prefix = tostring(player.UserId) .. "_"
+				for registryKey, instance in pairs(instances) do
+					if registryKey:sub(1, #prefix) == prefix then
+						modelInstance = instance
+						break
+					end
+				end
+
+				if not modelInstance then
+					-- If no instances exist, still show what methods would be available
+					-- by using the class's metatable
+					return true, `=== /{target} (ENTITY MODEL) ===\n\nNo instances exist. Create an instance first to see available methods.`
+				end
 			else
 				modelInstance = modelClass.get("SERVER")
 			end
@@ -275,6 +317,55 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 	end
 end
 
+-- Format a value for display (handles tables, strings, numbers, etc.)
+local function formatValue(value: any, maxLength: number?): string
+	local maxLen = maxLength or 200 -- Default cap at 200 characters
+
+	local valueType = type(value)
+
+	if valueType == "table" then
+		-- Check if it's an array (sequential numeric keys)
+		local isArray = true
+		local arrayLength = 0
+		for k, v in pairs(value) do
+			if type(k) ~= "number" or k ~= arrayLength + 1 then
+				isArray = false
+				break
+			end
+			arrayLength = arrayLength + 1
+		end
+
+		local result
+		if isArray then
+			-- Format as array: { "item1", "item2", "item3" }
+			local items = {}
+			for _, v in ipairs(value) do
+				table.insert(items, formatValue(v, nil)) -- Recursive
+			end
+			result = "{ " .. table.concat(items, ", ") .. " }"
+		else
+			-- Format as dictionary: { key1: "value1", key2: "value2" }
+			local items = {}
+			for k, v in pairs(value) do
+				table.insert(items, tostring(k) .. ": " .. formatValue(v, nil)) -- Recursive
+			end
+			result = "{ " .. table.concat(items, ", ") .. " }"
+		end
+
+		-- Truncate if too long
+		if #result > maxLen then
+			result = result:sub(1, maxLen - 3) .. "..."
+		end
+		return result
+	elseif valueType == "string" then
+		-- Wrap strings in quotes
+		return '"' .. value .. '"'
+	else
+		-- Numbers, booleans, etc. - use tostring
+		return tostring(value)
+	end
+end
+
 local function queryModelState(player: Player, modelName: string?): (boolean, string)
 	if not modelName then
 		local output = "=== Model State Summary ===\n\n"
@@ -313,7 +404,7 @@ local function queryModelState(player: Player, modelName: string?): (boolean, st
 
 					if #sortedKeys > 0 then
 						for _, key in sortedKeys do
-							output ..= `  {key}: {tostring(properties[key])}\n`
+							output ..= `  {key}: {formatValue(properties[key])}\n`
 						end
 					else
 						output ..= "  (no properties)\n"
@@ -360,7 +451,7 @@ local function queryModelState(player: Player, modelName: string?): (boolean, st
 
 					if #sortedKeys > 0 then
 						for _, key in sortedKeys do
-							output ..= `  {key}: {tostring(properties[key])}\n`
+							output ..= `  {key}: {formatValue(properties[key])}\n`
 						end
 					else
 						output ..= "  (no properties)\n"
@@ -373,60 +464,200 @@ local function queryModelState(player: Player, modelName: string?): (boolean, st
 			end
 		end
 
-		if #userModelNames == 0 and #serverModelNames == 0 then
+		-- Display Entity-scoped models
+		local entityModelNames = {}
+		for name, _ in entityModels do
+			table.insert(entityModelNames, name)
+		end
+		table.sort(entityModelNames)
+
+		if #entityModelNames > 0 then
+			for _, name in entityModelNames do
+				local modelInfo = entityModels[name]
+				local instances = AbstractModel.getAllInstances(modelInfo.modelName)
+
+				output ..= `--- {name:upper()} (ENTITY) ---\n`
+
+				if instances and next(instances) then
+					-- Display instances for requesting player only
+					local prefix = tostring(player.UserId) .. "_"
+					local playerInstances = {}
+					for registryKey, instance in pairs(instances) do
+						if registryKey:sub(1, #prefix) == prefix then
+							table.insert(playerInstances, { key = registryKey, instance = instance })
+						end
+					end
+
+					if #playerInstances > 0 then
+						table.sort(playerInstances, function(a, b)
+							return a.key < b.key
+						end)
+
+						for _, data in playerInstances do
+							local modelId = data.key:match("_(.+)$")
+							output ..= `\n  [Instance: {modelId}]\n`
+
+							-- Extract and display properties
+							local properties = {}
+							for key, value in pairs(data.instance) do
+								if not key:match("^_")
+									and key ~= "ownerId"
+									and key ~= "remoteEvent"
+									and type(value) ~= "function" then
+									properties[key] = value
+								end
+							end
+
+							local sortedKeys = {}
+							for key, _ in pairs(properties) do
+								table.insert(sortedKeys, key)
+							end
+							table.sort(sortedKeys)
+
+							for _, key in sortedKeys do
+								output ..= `    {key}: {formatValue(properties[key])}\n`
+							end
+						end
+					else
+						output ..= "  (no instances for this player)\n"
+					end
+				else
+					output ..= "  (no active instances)\n"
+				end
+
+				output ..= "\n"
+			end
+		end
+
+		if #userModelNames == 0 and #serverModelNames == 0 and #entityModelNames == 0 then
 			output ..= "No models registered.\n"
 		end
 
 		return true, output
 	else
 		local target = modelName:lower()
-		local modelClass = userModels[target] or serverModels[target]
+
+		-- Try to find model in User, Server, or Entity scopes
+		local modelClass = userModels[target]
+		local isServerModel = false
+		local isEntityModel = false
+
+		if not modelClass then
+			modelClass = serverModels[target]
+			isServerModel = true
+		end
+
+		if not modelClass then
+			local entityInfo = entityModels[target]
+			if entityInfo then
+				modelClass = entityInfo.class
+				isEntityModel = true
+			end
+		end
 
 		if not modelClass then
 			return false, `Model '{modelName}' not found`
 		end
 
-		local isServerModel = serverModels[target] ~= nil
-		local scope = isServerModel and "SERVER" or "USER"
+		-- Handle Entity models differently
+		if isEntityModel then
+			local entityInfo = entityModels[target]
+			local instances = AbstractModel.getAllInstances(entityInfo.modelName)
+			local output = `=== {target:upper()} (ENTITY) ===\n\n`
 
-		local modelInstance
-		if isServerModel then
-			modelInstance = modelClass.get("SERVER")
-		else
-			modelInstance = modelClass.get(tostring(player.UserId))
-		end
+			if instances and next(instances) then
+				-- Display instances for requesting player only
+				local prefix = tostring(player.UserId) .. "_"
+				local playerInstances = {}
+				for registryKey, instance in pairs(instances) do
+					if registryKey:sub(1, #prefix) == prefix then
+						table.insert(playerInstances, { key = registryKey, instance = instance })
+					end
+				end
 
-		if not modelInstance then
-			return false, `Could not get instance of {modelName}`
-		end
+				if #playerInstances > 0 then
+					table.sort(playerInstances, function(a, b)
+						return a.key < b.key
+					end)
 
-		local properties = {}
-		for key, value in pairs(modelInstance) do
-			if not key:match("^_")
-				and key ~= "ownerId"
-				and key ~= "remoteEvent"
-				and type(value) ~= "function" then
-				properties[key] = value
+					for _, data in playerInstances do
+						local modelId = data.key:match("_(.+)$")
+						output ..= `[Instance: {modelId}]\n`
+
+						-- Extract and display properties
+						local properties = {}
+						for key, value in pairs(data.instance) do
+							if not key:match("^_")
+								and key ~= "ownerId"
+								and key ~= "remoteEvent"
+								and type(value) ~= "function" then
+								properties[key] = value
+							end
+						end
+
+						local sortedKeys = {}
+						for key, _ in pairs(properties) do
+							table.insert(sortedKeys, key)
+						end
+						table.sort(sortedKeys)
+
+						for _, key in sortedKeys do
+							output ..= `  {key}: {formatValue(properties[key])}\n`
+						end
+
+						output ..= "\n"
+					end
+				else
+					output ..= "(no instances for this player)\n"
+				end
+			else
+				output ..= "(no active instances)\n"
 			end
-		end
 
-		local output = `=== {target:upper()} ({scope}) ===\n\n`
-
-		local sortedKeys = {}
-		for key, _ in pairs(properties) do
-			table.insert(sortedKeys, key)
-		end
-		table.sort(sortedKeys)
-
-		if #sortedKeys > 0 then
-			for _, key in sortedKeys do
-				output ..= `{key}: {tostring(properties[key])}\n`
-			end
+			return true, output
 		else
-			output ..= "(no properties)\n"
-		end
+			-- Handle User or Server models
+			local scope = isServerModel and "SERVER" or "USER"
 
-		return true, output
+			local modelInstance
+			if isServerModel then
+				modelInstance = modelClass.get("SERVER")
+			else
+				modelInstance = modelClass.get(tostring(player.UserId))
+			end
+
+			if not modelInstance then
+				return false, `Could not get instance of {modelName}`
+			end
+
+			local properties = {}
+			for key, value in pairs(modelInstance) do
+				if not key:match("^_")
+					and key ~= "ownerId"
+					and key ~= "remoteEvent"
+					and type(value) ~= "function" then
+					properties[key] = value
+				end
+			end
+
+			local output = `=== {target:upper()} ({scope}) ===\n\n`
+
+			local sortedKeys = {}
+			for key, _ in pairs(properties) do
+				table.insert(sortedKeys, key)
+			end
+			table.sort(sortedKeys)
+
+			if #sortedKeys > 0 then
+				for _, key in sortedKeys do
+					output ..= `{key}: {formatValue(properties[key])}\n`
+				end
+			else
+				output ..= "(no properties)\n"
+			end
+
+			return true, output
+		end
 	end
 end
 
@@ -512,6 +743,8 @@ function SlashCommandService:registerModels(modelList: { { class: any, name: str
 			userModels[name:lower()] = modelClass
 		elseif scope == "Server" then
 			serverModels[name:lower()] = modelClass
+		elseif scope == "Entity" then
+			entityModels[name:lower()] = { class = modelClass, modelName = name }
 		end
 	end
 end
@@ -564,6 +797,14 @@ function SlashCommandService:createTextChatCommands(): ()
 	for modelName, _ in serverModels do
 		local command = Instance.new("TextChatCommand")
 		command.Name = `custom_servermodel_{modelName}`
+		command.PrimaryAlias = `/{modelName:lower()}`
+		command.Parent = textCommands
+	end
+
+	-- Create a command for each entity-scoped model
+	for modelName, _ in entityModels do
+		local command = Instance.new("TextChatCommand")
+		command.Name = `custom_entitymodel_{modelName}`
 		command.PrimaryAlias = `/{modelName:lower()}`
 		command.Parent = textCommands
 	end

@@ -97,6 +97,11 @@ function AbstractModel.removeAllEntitiesForOwner(modelName: string, ownerId: str
 	end
 end
 
+-- Get all active instances for a model (useful for debugging/admin)
+function AbstractModel.getAllInstances(modelName: string): { [string]: AbstractModel }
+	return registries[modelName] or {}
+end
+
 function AbstractModel:_extractState()
 	local state = {}
 	for key, value in pairs(self) do

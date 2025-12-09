@@ -17,6 +17,7 @@ local QUEUE_WARNING_THRESHOLD = 100 -- Warn if queue gets too large
 type WriteRequest = {
 	modelName: string,
 	ownerId: string,
+	modelId: string?,
 	data: { [string]: any },
 	timestamp: number,
 }
@@ -81,7 +82,10 @@ end
 
 -- Process a single write from the queue
 local function processWrite(request: WriteRequest): boolean
-	local key = request.modelName .. "_" .. request.ownerId
+	-- Build DataStore key with optional modelId
+	local key = if request.modelId
+		then request.modelName .. "_" .. request.ownerId .. "_" .. request.modelId
+		else request.modelName .. "_" .. request.ownerId
 
 	-- Attempt to write to DataStore
 	local success, err = pcall(function()
@@ -91,14 +95,21 @@ local function processWrite(request: WriteRequest): boolean
 	if success then
 		print(
 			string.format(
-				"[PersistenceService] ✓ Successfully wrote %s for owner %s",
+				"[PersistenceService] ✓ Successfully wrote %s for owner %s%s",
 				request.modelName,
-				request.ownerId
+				request.ownerId,
+				request.modelId and (" (entity: " .. request.modelId .. ")") or ""
 			)
 		)
 		return true
 	else
-		warn(string.format("[PersistenceService] ✗ Failed to write %s for owner %s: %s", request.modelName, request.ownerId, tostring(err)))
+		warn(string.format(
+			"[PersistenceService] ✗ Failed to write %s for owner %s%s: %s",
+			request.modelName,
+			request.ownerId,
+			request.modelId and (" (entity: " .. request.modelId .. ")") or "",
+			tostring(err)
+		))
 		return false
 	end
 end
@@ -214,11 +225,13 @@ end
 
 -- Load a model's data from DataStore
 -- Returns (success: boolean, data: any?)
--- - New player: (true, nil) - Success, no data found
--- - Existing player: (true, data) - Success with loaded data
+-- - New player/entity: (true, nil) - Success, no data found
+-- - Existing player/entity: (true, data) - Success with loaded data
 -- - Load failed: (false, nil) - Failure, should kick player
-function PersistenceService:loadModel(modelName: string, ownerId: string): (boolean, { [string]: any }?)
-	local key = modelName .. "_" .. ownerId
+function PersistenceService:loadModel(modelName: string, ownerId: string, modelId: string?): (boolean, { [string]: any }?)
+	local key = if modelId
+		then modelName .. "_" .. ownerId .. "_" .. modelId
+		else modelName .. "_" .. ownerId
 
 	local success, result = pcall(function()
 		return dataStore:GetAsync(key)
@@ -228,19 +241,21 @@ function PersistenceService:loadModel(modelName: string, ownerId: string): (bool
 		if result then
 			print(
 				string.format(
-					"[PersistenceService] ✓ Loaded %s for owner %s",
+					"[PersistenceService] ✓ Loaded %s for owner %s%s",
 					modelName,
-					ownerId
+					ownerId,
+					modelId and (" (entity: " .. modelId .. ")") or ""
 				)
 			)
 			return true, result
 		else
-			-- No data found (new player)
+			-- No data found (new player/entity)
 			print(
 				string.format(
-					"[PersistenceService] No saved data for %s (owner: %s) - using defaults",
+					"[PersistenceService] No saved data for %s (owner: %s%s) - using defaults",
 					modelName,
-					ownerId
+					ownerId,
+					modelId and (", entity: " .. modelId) or ""
 				)
 			)
 			return true, nil
@@ -249,9 +264,10 @@ function PersistenceService:loadModel(modelName: string, ownerId: string): (bool
 		-- Load failed
 		warn(
 			string.format(
-				"[PersistenceService] ✗ Failed to load %s for owner %s: %s",
+				"[PersistenceService] ✗ Failed to load %s for owner %s%s: %s",
 				modelName,
 				ownerId,
+				modelId and (" (entity: " .. modelId .. ")") or "",
 				tostring(result)
 			)
 		)
@@ -260,7 +276,7 @@ function PersistenceService:loadModel(modelName: string, ownerId: string): (bool
 end
 
 -- Queue a write request
-function PersistenceService:queueWrite(modelName: string, ownerId: string, modelInstance: any)
+function PersistenceService:queueWrite(modelName: string, ownerId: string, modelInstance: any, modelId: string?)
 	-- Serialize the model data
 	local serializedData = serializeModelData(modelInstance)
 
@@ -268,6 +284,7 @@ function PersistenceService:queueWrite(modelName: string, ownerId: string, model
 	local request: WriteRequest = {
 		modelName = modelName,
 		ownerId = ownerId,
+		modelId = modelId,
 		data = serializedData,
 		timestamp = os.clock(),
 	}
@@ -278,9 +295,10 @@ function PersistenceService:queueWrite(modelName: string, ownerId: string, model
 	-- Debug output
 	print(
 		string.format(
-			"[PersistenceService] Queued write for %s (owner: %s) - Queue size: %d, Tokens: %d",
+			"[PersistenceService] Queued write for %s (owner: %s%s) - Queue size: %d, Tokens: %d",
 			modelName,
 			ownerId,
+			modelId and (", entity: " .. modelId) or "",
 			#writeQueue,
 			currentTokens
 		)

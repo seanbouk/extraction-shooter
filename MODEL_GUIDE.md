@@ -37,12 +37,24 @@ Server-scoped models are **per-server instance** and **ephemeral** (not saved):
 - **Use Cases**: Match state, server events, shared game state
 - **Example**: `ShrineModel` - shared by all players in the server
 
+### Entity-Scoped Models (`models/entity/`)
+
+Entity-scoped models are **per-player instances** and **persistent** (saved to DataStore):
+
+- **Lifecycle**: Multiple instances per player, created on-demand, destroyed when player leaves
+- **Persistence**: Automatically saved to DataStore with composite keys (ModelName_UserId_ModelId)
+- **Owner ID**: Composite key of UserId + ModelId (e.g., "123456789_pet1")
+- **Use Cases**: Pets, player-owned bases, character slots, equipment slots, squadmates
+- **Example**: `PetModel` - each player can have multiple pets (pet1, pet2, pet3, etc.)
+- **ID Strategy**: Application-specific - sequential numbers, UUIDs, or semantic identifiers
+
 ### Choosing a Scope
 
-| Scope | Location | Persistent | Per-Player | Use For |
-|-------|----------|------------|------------|---------|
-| **User** | `models/user/` | ✅ Yes | ✅ Yes | Player inventory, progress, settings |
-| **Server** | `models/server/` | ❌ No | ❌ No | Match scores, timers, shared game state |
+| Scope | Location | Persistent | Per-Player | Multiple Instances | Use For |
+|-------|----------|------------|------------|-------------------|---------|
+| **User** | `models/user/` | ✅ Yes | ✅ Yes | ❌ One per player | Player inventory, progress, settings |
+| **Server** | `models/server/` | ❌ No | ❌ No | ❌ One for server | Match scores, timers, shared game state |
+| **Entity** | `models/entity/` | ✅ Yes | ✅ Yes | ✅ Many per player | Pets, bases, character slots, equipment |
 
 ## Creating a New Model
 
@@ -63,17 +75,24 @@ All models inherit from `AbstractModel.lua` which provides:
 
 Use this decision tree to determine which scope your model needs:
 
-**Question 1: Does each player have their own separate copy of this data?**
-- **Yes** → User-scoped (continue to Question 2)
-- **No** → Go to Question 3
+**Question 1: Does each player need multiple instances of this data?**
+- **Yes** → **Entity-scoped** (place in `models/entity/`)
+  - Player has multiple pets: EntityModel
+  - Player has multiple bases: EntityModel
+  - Player has multiple character slots: EntityModel
+- **No** → Continue to Question 2
 
-**Question 2: Should this data persist across server restarts and player sessions?**
+**Question 2: Does each player have their own separate copy of this data?**
+- **Yes** → User-scoped (continue to Question 3)
+- **No** → Go to Question 4
+
+**Question 3: Should this data persist across server restarts and player sessions?**
 - **Yes** → **User-scoped** (place in `models/user/`)
 - **No** → User-scoped still appropriate if data is per-player but ephemeral
 
-**Question 3: Is this data shared across all players in the server?**
+**Question 4: Is this data shared across all players in the server?**
 - **Yes** → **Server-scoped** (place in `models/server/`)
-- **No** → Reconsider Question 1 - data might be per-player after all
+- **No** → Reconsider Question 2 - data might be per-player after all
 
 **Examples:**
 
@@ -195,11 +214,205 @@ end
 return YourModel
 ```
 
+#### For Entity-Scoped Models (`models/entity/YourModel.lua`):
+
+```lua
+--!strict
+
+local AbstractModel = require(script.Parent.Parent.AbstractModel)
+local PersistenceService = require(script.Parent.Parent.Parent.services.PersistenceService)
+
+local YourModel = {}
+YourModel.__index = YourModel
+setmetatable(YourModel, AbstractModel)
+
+export type YourModel = typeof(setmetatable({} :: {
+	-- Define your model's properties here
+	propertyName: propertyType,
+}, YourModel)) & AbstractModel.AbstractModel
+
+function YourModel.new(ownerId: string, modelId: string): YourModel
+	-- Entity models require both ownerId and modelId
+	-- Optional: Pass "all" as 5th parameter for broadcast sync instead of owner-only
+	local self = AbstractModel.new("YourModel", ownerId, "Entity", modelId) :: any
+	setmetatable(self, YourModel)
+
+	-- Initialize your properties
+	self.propertyName = defaultValue
+
+	return self :: YourModel
+end
+
+function YourModel.get(ownerId: string, modelId: string): YourModel
+	return AbstractModel.getOrCreate("YourModel", ownerId, function()
+		return YourModel.new(ownerId, modelId)
+	end, modelId) :: YourModel
+end
+
+function YourModel.remove(ownerId: string, modelId: string): ()
+	AbstractModel.removeInstance("YourModel", ownerId, modelId)
+end
+
+-- REQUIRED: Static method to load all entities for a player
+-- Called by ModelRunner when player joins
+function YourModel.loadAllForOwner(ownerId: string): boolean
+	-- Get entity IDs for this player from somewhere (e.g., UserModel, external list, etc.)
+	-- For example: local entityIds = UserModel.get(ownerId).yourModelIds
+	local entityIds = {"1", "2", "3"} -- Example: sequential IDs
+
+	-- Load each entity from DataStore
+	for _, entityId in entityIds do
+		local success, loadedData = PersistenceService:loadModel("YourModel", ownerId, entityId)
+
+		if not success then
+			return false -- Loading failed, player will be kicked
+		end
+
+		-- Create instance
+		local entity = YourModel.get(ownerId, entityId)
+
+		-- Apply loaded data if it exists
+		if loadedData then
+			entity:_applyLoadedData(loadedData)
+		end
+
+		-- Sync initial state (skip persistence since we just loaded)
+		entity:syncState(true)
+	end
+
+	return true
+end
+
+-- REQUIRED: Static method to remove all entities for a player
+-- Called by ModelRunner when player leaves
+function YourModel.removeAllEntitiesForOwner(ownerId: string): ()
+	AbstractModel.removeAllEntitiesForOwner("YourModel", ownerId)
+end
+
+-- Add your model's methods here
+function YourModel:yourMethod(): ()
+	-- Implementation
+	self:syncState() -- Entity models default to owner-only sync
+end
+
+-- Example: Method that broadcasts to all players (requires "all" syncScope in constructor)
+function YourModel:broadcastMethod(): ()
+	-- Only works if you passed "all" as syncScope to AbstractModel.new()
+	self:syncState() -- Will broadcast to all players
+end
+
+return YourModel
+```
+
 **Key Differences:**
-- Require path: `script.Parent.Parent.AbstractModel` (up two levels from `user/` or `server/`)
-- Scope parameter: `"User"` for user-scoped, `"Server"` for server-scoped
-- Access pattern: User-scoped uses player UserId, Server-scoped uses `"SERVER"`
-- Broadcast: User-scoped typically uses `"owner"`, Server-scoped typically uses `"all"`
+- Require path: `script.Parent.Parent.AbstractModel` (up two levels from `user/`, `server/`, or `entity/`)
+- Scope parameter: `"User"` for user-scoped, `"Server"` for server-scoped, `"Entity"` for entity-scoped
+- Entity models require `modelId` parameter in constructor and all static methods
+- Entity models must implement `loadAllForOwner()` and `removeAllEntitiesForOwner()` static methods
+- Access pattern: User uses player UserId, Server uses `"SERVER"`, Entity uses composite `ownerId_modelId`
+- Default sync: Entity models default to owner-only (like User), can override to "all" with 5th parameter to `new()`
+
+### Step 3b: Entity ID Management Strategies
+
+For Entity-scoped models, choosing an appropriate ID strategy is important. The framework doesn't prescribe a specific approach - select based on your application's needs:
+
+#### Sequential Numeric IDs
+**Pattern**: "1", "2", "3", "4", ...
+
+**Advantages:**
+- Simple and intuitive
+- Natural ordering for display
+- Short DataStore keys (reduces storage)
+- Easy to debug
+
+**Disadvantages:**
+- Requires tracking highest ID per player
+- Reusing IDs after deletion can cause confusion
+- Not globally unique
+
+**Best for:** Pets, equipment slots, save slots, bases
+
+**Example:**
+```lua
+-- Store in UserModel
+export type InventoryModel = typeof(setmetatable({} :: {
+	nextPetId: number, -- Track next available ID
+	petIds: {string}, -- List of active pet IDs
+}, InventoryModel))
+
+-- In controller when creating new pet
+local inventory = InventoryModel.get(ownerId)
+local petId = tostring(inventory.nextPetId)
+inventory.nextPetId += 1
+table.insert(inventory.petIds, petId)
+inventory:syncState()
+
+local pet = PetModel.get(ownerId, petId)
+```
+
+#### UUID/GUID Strategy
+**Pattern**: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+
+**Advantages:**
+- Guaranteed globally unique
+- No collision concerns
+- Can be generated client-side or server-side
+- No need to track counters
+
+**Disadvantages:**
+- Long DataStore keys (36+ characters)
+- Not human-readable
+- No natural ordering
+
+**Best for:** Player-created items, user-generated content, items that can be traded
+
+**Example:**
+```lua
+local HttpService = game:GetService("HttpService")
+
+-- In controller when creating new item
+local itemId = HttpService:GenerateGUID(false) -- false = no curly braces
+local item = ItemModel.get(ownerId, itemId)
+```
+
+#### Semantic IDs
+**Pattern**: "slot1", "slot2", "main_base", "secondary_base"
+
+**Advantages:**
+- Self-documenting
+- Easy to understand in logs
+- Can encode meaning (e.g., "equipped_helmet")
+- Good for fixed-size collections
+
+**Disadvantages:**
+- Requires predefined naming scheme
+- Can become complex with dynamic content
+- Length varies
+
+**Best for:** Fixed equipment slots, preset loadouts, specific roles
+
+**Example:**
+```lua
+-- Fixed equipment slots
+local slots = {"helmet", "chest", "legs", "weapon"}
+for _, slotName in slots do
+	local equipment = EquipmentModel.get(ownerId, slotName)
+end
+```
+
+#### Hybrid Approach
+**Pattern**: Combine strategies (e.g., "pet_1", "pet_2" or "2024-12-09_1")
+
+**Advantages:**
+- Balances readability and uniqueness
+- Can include metadata in ID
+- Flexible for different use cases
+
+**Example:**
+```lua
+local timestamp = os.time()
+local entityId = string.format("base_%d_%d", timestamp, counter)
+```
 
 ### Step 4: Key Pattern Requirements
 

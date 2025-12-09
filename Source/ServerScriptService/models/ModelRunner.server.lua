@@ -16,7 +16,7 @@ type ModelClass = {
 	remove: (ownerId: string) -> (),
 }
 
-type ModelScope = "User" | "Server"
+type ModelScope = "User" | "Server" | "Entity"
 
 type ModelInfo = {
 	class: ModelClass,
@@ -52,6 +52,12 @@ end
 local serverFolder = modelsFolder:FindFirstChild("server")
 if serverFolder then
 	discoverModelsInFolder(serverFolder, "Server")
+end
+
+-- Discover Entity-scoped models
+local entityFolder = modelsFolder:FindFirstChild("entity")
+if entityFolder then
+	discoverModelsInFolder(entityFolder, "Entity")
 end
 
 -- Register models with SlashCommandService and initialize it
@@ -98,6 +104,21 @@ Players.PlayerAdded:Connect(function(player: Player)
 			-- Sync initial state to client (skipPersistence=true since we just loaded)
 			-- This ensures Bolt RemoteProperty has correct value when client calls Observe()
 			instance:syncState(true)
+
+		-- Initialize Entity-scoped models per player
+		elseif modelInfo.scope == "Entity" then
+			-- Entity models need custom initialization per model type
+			-- They should implement a static loadAllForOwner method
+			if modelInfo.class.loadAllForOwner then
+				local success = modelInfo.class.loadAllForOwner(ownerId)
+
+				if not success then
+					player:Kick("Roblox servers are busy right now. Please rejoin to try again. Your progress is safe!")
+					return
+				end
+			else
+				warn("Entity model " .. modelInfo.name .. " missing loadAllForOwner method")
+			end
 		end
 	end
 end)
@@ -110,10 +131,15 @@ local playerRemovingConnection = Players.PlayerRemoving:Connect(function(player:
 	-- Flush all pending writes for this player before cleanup
 	PersistenceService:flushPlayerWrites(ownerId)
 
-	-- Only remove User-scoped models (Server-scoped persist for server lifetime)
+	-- Remove User and Entity scoped models (Server-scoped persist for server lifetime)
 	for _, modelInfo in modelInfos do
 		if modelInfo.scope == "User" then
 			modelInfo.class.remove(ownerId)
+		elseif modelInfo.scope == "Entity" then
+			-- Clean up all entities for this owner
+			if modelInfo.class.removeAllEntitiesForOwner then
+				modelInfo.class.removeAllEntitiesForOwner(ownerId)
+			end
 		end
 	end
 end)

@@ -4,3 +4,6 @@
 
 # MCP local configuration
 .claude/settings.local.json
+
+# VS Code / Tooling artifacts
+sourcemap.json

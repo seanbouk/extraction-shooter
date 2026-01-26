@@ -7,8 +7,30 @@
       "$ignoreUnknownInstances": true
     },
     "ReplicatedStorage": {
-      "$path": "Source/ReplicatedStorage",
-      "$ignoreUnknownInstances": true
+      "$className": "ReplicatedStorage",
+      "$ignoreUnknownInstances": true,
+      "Bolt": {
+        "$path": "Source/ReplicatedStorage/Bolt.luau"
+      },
+      "Network": {
+        "$path": "Source/ReplicatedStorage/Network.luau"
+      },
+      "NetworkBuilder": {
+        "$path": "Source/ReplicatedStorage/NetworkBuilder.lua"
+      },
+      "Utils": {
+        "$path": "Source/ReplicatedStorage/Utils"
+      },
+      "ViewState": {
+        "$path": "Source/ReplicatedStorage/ViewState.lua"
+      },
+      "Config": {
+        "$className": "Folder",
+        "$ignoreUnknownInstances": true,
+        "ConfigTypes": {
+          "$path": "Source/ReplicatedStorage/Config/ConfigTypes.luau"
+        }
+      }
     },
     "ServerScriptService": {
       "$path": "Source/ServerScriptService",

@@ -29,7 +29,7 @@ Controllers are responsible for:
 
 ### Step 1: Understand AbstractController
 
-All controllers inherit from `AbstractController.lua` which provides:
+All controllers inherit from `AbstractController.luau` which provides:
 
 - **`new(controllerName: string)`**: Constructor that creates the controller and gets its Bolt ReliableEvent from Network module
 - **`intentEvent: ReliableEvent`**: Bolt ReliableEvent obtained via Network.registerIntent() for client-server communication
@@ -45,7 +45,7 @@ All controllers inherit from `AbstractController.lua` which provides:
 
 ### Step 2: Create Your Controller File
 
-Create a new ModuleScript in `src/server/controllers/YourController.lua`:
+Create a new ModuleScript in `src/server/controllers/YourController.luau`:
 
 ```lua
 --!strict
@@ -135,7 +135,7 @@ end
 
 ### Step 4: Initialize Your Controller
 
-Controllers are automatically initialized by `ControllerRunner.server.lua` in the `controllers/` folder. The ControllerRunner uses auto-discovery to find and initialize all controllers:
+Controllers are automatically initialized by `ControllerRunner.server.luau` in the `controllers/` folder. The ControllerRunner uses auto-discovery to find and initialize all controllers:
 
 ```lua
 --!strict
@@ -160,7 +160,7 @@ print("ControllerRunner: All " .. #controllers .. " controller(s) initialized")
 
 ## Example: CashMachineController
 
-The `CashMachineController.lua` file demonstrates a complete controller implementation:
+The `CashMachineController.luau` file demonstrates a complete controller implementation:
 
 ### Features:
 - Extends AbstractController
@@ -188,9 +188,9 @@ Client-side code can immediately use the Bolt event:
 
 ## File Locations
 
-- **AbstractController**: `src/server/controllers/AbstractController.lua`
-- **Your Controllers**: `src/server/controllers/YourController.lua`
-- **Controller Initialization**: `src/server/controllers/ControllerRunner.server.lua`
+- **AbstractController**: `src/server/controllers/AbstractController.luau`
+- **Your Controllers**: `src/server/controllers/YourController.luau`
+- **Controller Initialization**: `src/server/controllers/ControllerRunner.server.luau`
 - **Network Module**: `src/ReplicatedStorage/Network.luau` (Bolt events eagerly registered here)
 
 ## Client-Side Usage
@@ -687,7 +687,7 @@ yourIntent:FireServer("TestAction", testData)
 
 ## Adding New Controllers
 
-1. **Create** `YourController.lua` in `src/server/controllers/`
+1. **Create** `YourController.luau` in `src/server/controllers/`
 2. **Extend** AbstractController using the pattern above
 3. **That's it!** ControllerRunner will automatically discover and initialize your controller
 4. **Test** from client using the auto-created RemoteEvent
@@ -834,7 +834,7 @@ Actions should describe **what the user wants to do** (their intent), not what w
 
 ### Example: Adding CashMachine Actions
 
-**In IntentActions.lua:**
+**In IntentActions.luau:**
 
 ```lua
 local IntentActions = {
@@ -894,7 +894,7 @@ remoteEvent:FireServer(IntentActions.CashMachine.Withdraw, 100)
 When you have multiple related actions, group them under one feature:
 
 ```lua
--- IntentActions.lua
+-- IntentActions.luau
 Shop = {
     BuyWeapon = "BuyWeapon",
     SellWeapon = "SellWeapon",
@@ -937,7 +937,7 @@ local ACTIONS = {
 For controllers with only one action, you still benefit from the pattern:
 
 ```lua
--- IntentActions.lua
+-- IntentActions.luau
 Shrine = {
     Donate = "Donate",
 },

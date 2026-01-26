@@ -23,11 +23,11 @@ Client (View) → Bolt ReliableEvent (Network.Intent.*) → Controller (Validati
 ## Reference Files
 
 Before generating code, I will read these stable reference files to ensure accuracy:
-- `Source/ServerScriptService/controllers/AbstractController.lua` - Base class pattern and required methods
+- `Source/ServerScriptService/controllers/AbstractController.luau` - Base class pattern and required methods
 - `CONTROLLER_GUIDE.md` - Complete controller documentation with examples and patterns
 - `Source/ReplicatedStorage/Network.luau` - Network configuration structure and action constants
-- `Source/ServerScriptService/controllers/CashMachineController.lua` - Example of ACTIONS pattern
-- `Source/ServerScriptService/controllers/ShrineController.lua` - Example of multiple model interactions
+- `Source/ServerScriptService/controllers/CashMachineController.luau` - Example of ACTIONS pattern
+- `Source/ServerScriptService/controllers/ShrineController.luau` - Example of multiple model interactions
 
 These core files contain the exact patterns, type definitions, and conventions to follow.
 
@@ -107,8 +107,8 @@ If yes, for each additional model:
 **Model Existence Validation**:
 
 After collecting all models, I will verify each model file exists at:
-- User-scoped: `Source/ServerScriptService/models/user/{ModelName}.lua`
-- Server-scoped: `Source/ServerScriptService/models/server/{ModelName}.lua`
+- User-scoped: `Source/ServerScriptService/models/user/{ModelName}.luau`
+- Server-scoped: `Source/ServerScriptService/models/server/{ModelName}.luau`
 
 If any model is not found, I will:
 1. Warn you about the missing model
@@ -198,7 +198,7 @@ When generating the controller, I will:
 ### 1. Read Reference Files
 
 Use Read tool on:
-- **AbstractController.lua** to understand base class API (intentEvent, dispatchAction)
+- **AbstractController.luau** to understand base class API (intentEvent, dispatchAction)
 - **CONTROLLER_GUIDE.md** for complete pattern examples and conventions
 - **Network.luau** to understand current configuration and alphabetical ordering
 - **Example controllers** to see patterns in practice (CashMachineController, ShrineController)
@@ -213,7 +213,7 @@ Key patterns to extract:
 
 ### 2. Generate Controller File
 
-**Location**: `Source/ServerScriptService/controllers/{ControllerName}.lua`
+**Location**: `Source/ServerScriptService/controllers/{ControllerName}.luau`
 
 **Structure**:
 ```lua
@@ -491,7 +491,7 @@ After generation, provide:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Created Files:
-  📁 Source/ServerScriptService/controllers/{ControllerName}.lua
+  📁 Source/ServerScriptService/controllers/{ControllerName}.luau
 
 Modified Files:
   📝 Source/ReplicatedStorage/Network.luau
@@ -516,7 +516,7 @@ Next Steps:
    - Check validation logic matches your requirements
    - Verify model interactions are correct
    - Customize validation or business logic as needed
-   - Location: Source/ServerScriptService/controllers/{ControllerName}.lua
+   - Location: Source/ServerScriptService/controllers/{ControllerName}.luau
 
 2. **Verify Auto-Discovery**
    - Start or restart your Roblox server
@@ -563,7 +563,7 @@ Next Steps:
 Documentation:
   - CONTROLLER_GUIDE.md - Complete controller patterns and best practices
   - Network.luau - All action constants and networking infrastructure
-  - AbstractController.lua - Base class reference
+  - AbstractController.luau - Base class reference
   - VIEW_GUIDE.md - Creating views to interact with this controller
 
 ⚠️  Important Reminders:

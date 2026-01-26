@@ -16,13 +16,13 @@
         "$path": "Source/ReplicatedStorage/Network.luau"
       },
       "NetworkBuilder": {
-        "$path": "Source/ReplicatedStorage/NetworkBuilder.lua"
+        "$path": "Source/ReplicatedStorage/NetworkBuilder.luau"
       },
       "Utils": {
         "$path": "Source/ReplicatedStorage/Utils"
       },
       "ViewState": {
-        "$path": "Source/ReplicatedStorage/ViewState.lua"
+        "$path": "Source/ReplicatedStorage/ViewState.luau"
       },
       "Config": {
         "$className": "Folder",

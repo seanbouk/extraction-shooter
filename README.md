@@ -2,6 +2,8 @@
 
 An MVC-based starter template for Roblox game development with automatic DataStore synchronization. This template uses Rojo for code management, Claude Code for AI-assisted development, and the Roblox MCP server for direct Studio integration.
 
+> **Note:** This template uses Luau exclusively. All script files use the `.luau`, `.server.luau`, or `.client.luau` extensions.
+
 ## MVC Architecture Overview
 
 This template implements a strict Model-View-Controller pattern with automatic state persistence:
@@ -261,23 +263,23 @@ Always start in this order:
 ### Building an MVC Feature
 
 1. **Create the Model** (`src/server/models/`)
-   - Define the data structure as a ModuleScript (`.lua`)
+   - Define the data structure as a ModuleScript (`.luau`)
    - Call `syncState()` after state changes to trigger persistence and state sync
    - DataStore persistence is automatic via PersistenceService
-   - Example: `PlayerInventory.lua`
+   - Example: `PlayerInventory.luau`
 
 2. **Create the Controller** (`src/server/controllers/`)
-   - Create a Script (`.server.lua`) that listens to Bolt ReliableEvents
+   - Create a Script (`.server.luau`) that listens to Bolt ReliableEvents
    - Validate incoming requests
    - Call Model methods to update state
-   - Example: `InventoryController.server.lua`
+   - Example: `InventoryController.server.luau`
 
 3. **Create the View** (`src/client/views/`)
-   - Create a LocalScript (`.client.lua`) that targets tagged objects
+   - Create a LocalScript (`.client.luau`) that targets tagged objects
    - Use CollectionService to find UI/Workspace elements
    - Provide immediate feedback for interactions
    - Observe state changes via Network.State.* and update visuals
-   - Example: `InventoryView.client.lua`
+   - Example: `InventoryView.client.luau`
 
 4. **Create Visual Elements in Studio**
    - Build UI in StarterGui or objects in Workspace
@@ -335,7 +337,7 @@ These checklists provide step-by-step guidance for adding new components to your
 1. ✓ **Decide which pattern**: A (pure client), B (intent-based), or C (state observation). See [VIEW_GUIDE.md](VIEW_GUIDE.md) for decision tree.
 2. ✓ **Verify Network.Actions constants exist** (if sending intents - Pattern B)
 3. ✓ **Verify Network.State.* exists** (if observing state - Pattern C)
-4. ✓ **Create view file** in `src/client/views/` (name it `YourView.client.lua`)
+4. ✓ **Create view file** in `src/client/views/` (name it `YourView.client.luauu`)
 5. ✓ **Define tag constant** for CollectionService (e.g., `local TAG = "YourFeature"`)
 6. ✓ **Create setupInstance function** for initialization
 7. ✓ **Connect to user interactions** (buttons, prompts, proximity prompts, etc.)
@@ -468,7 +470,7 @@ Network.State.WeaponShop = Bolt.RemoteProperty({
 
 ### Step 3: Create the WeaponShopModel
 
-**File:** `src/server/models/server/WeaponShopModel.lua`
+**File:** `src/server/models/server/WeaponShopModel.luau`
 
 ```lua
 --!strict
@@ -520,7 +522,7 @@ return WeaponShopModel
 
 ### Step 5: Create the WeaponShopController
 
-**File:** `src/server/controllers/WeaponShopController.lua`
+**File:** `src/server/controllers/WeaponShopController.luau`
 
 ```lua
 --!strict
@@ -605,7 +607,7 @@ return WeaponShopController
 
 ### Step 6: Create the WeaponShopView
 
-**File:** `src/client/views/WeaponShopView.client.lua`
+**File:** `src/client/views/WeaponShopView.client.luau`
 
 ```lua
 --!strict
@@ -735,9 +737,9 @@ end)
 
 ### File Naming Conventions
 
-- `.server.lua` - Creates a Script (server-side) - Use for Controllers
-- `.client.lua` - Creates a LocalScript (client-side) - Use for Views
-- `.lua` - Creates a ModuleScript - Use for Models and shared utilities
+- `.server.luau` - Creates a Script (server-side) - Use for Controllers
+- `.client.luau` - Creates a LocalScript (client-side) - Use for Views
+- `.luau` - Creates a ModuleScript - Use for Models and shared utilities
 - Folders become Folder instances in Roblox
 
 ### Directory Structure Recommendation
@@ -881,7 +883,7 @@ src/
 3. **Wrong ownerId filtering**
    - Check: Are you filtering by ownerId when you shouldn't?
    - Fix: Bolt handles per-player filtering automatically for User-scoped models
-   - See: StatusBarView.client.lua for example (no ownerId filtering needed)
+   - See: StatusBarView.client.luau for example (no ownerId filtering needed)
 
 4. **Model not syncing after changes**
    - Check: Do your model methods call `self:syncState()`?

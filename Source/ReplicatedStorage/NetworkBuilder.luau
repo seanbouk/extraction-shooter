@@ -3,7 +3,7 @@
 --[[
 	NetworkBuilder - Engine module for building Network infrastructure
 
-	This module contains the auto-generation logic for Network.lua.
+	This module contains the auto-generation logic for Network.luau.
 	Game developers should not need to modify this file.
 
 	The NetworkBuilder takes a configuration object and Bolt library,

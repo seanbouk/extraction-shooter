@@ -60,7 +60,7 @@ Entity-scoped models are **per-player instances** and **persistent** (saved to D
 
 ### Step 1: Understand AbstractModel
 
-All models inherit from `AbstractModel.lua` which provides:
+All models inherit from `AbstractModel.luau` which provides:
 
 - **`new(modelName: string, ownerId: string, scope: ModelScope)`**: Constructor for creating new instances with model name, owner identifier, and scope
 - **`getOrCreate(modelName: string, ownerId: string, constructorFn: () -> AbstractModel)`**: Centralized registry management - gets existing instance or creates new one
@@ -119,12 +119,12 @@ Use this decision tree to determine which scope your model needs:
 
 Before creating your model, decide which scope it needs:
 
-- **User-Scoped**: Place in `src/server/models/user/YourModel.lua` and pass `"User"` to AbstractModel
-- **Server-Scoped**: Place in `src/server/models/server/YourModel.lua` and pass `"Server"` to AbstractModel
+- **User-Scoped**: Place in `src/server/models/user/YourModel.luau` and pass `"User"` to AbstractModel
+- **Server-Scoped**: Place in `src/server/models/server/YourModel.luau` and pass `"Server"` to AbstractModel
 
 ### Step 3: Create Your Model File
 
-#### For User-Scoped Models (`models/user/YourModel.lua`):
+#### For User-Scoped Models (`models/user/YourModel.luau`):
 
 ```lua
 --!strict
@@ -169,7 +169,7 @@ end
 return YourModel
 ```
 
-#### For Server-Scoped Models (`models/server/YourModel.lua`):
+#### For Server-Scoped Models (`models/server/YourModel.luau`):
 
 ```lua
 --!strict
@@ -214,7 +214,7 @@ end
 return YourModel
 ```
 
-#### For Entity-Scoped Models (`models/entity/YourModel.lua`):
+#### For Entity-Scoped Models (`models/entity/YourModel.luau`):
 
 ```lua
 --!strict
@@ -579,7 +579,7 @@ end
 
 ### Example 1: InventoryModel (User-Scoped)
 
-The `InventoryModel.lua` file in `src/server/models/user/` demonstrates a User-scoped model with per-owner registry pattern and state broadcasting:
+The `InventoryModel.luau` file in `src/server/models/user/` demonstrates a User-scoped model with per-owner registry pattern and state broadcasting:
 
 ### Features:
 - Per-owner registry pattern via `get(ownerId)` method
@@ -591,7 +591,7 @@ The `InventoryModel.lua` file in `src/server/models/user/` demonstrates a User-s
 
 ### Usage in Production:
 User-scoped models are initialized automatically when players join:
-- `ModelRunner.server.lua` creates inventories in the PlayerAdded handler
+- `ModelRunner.server.luau` creates inventories in the PlayerAdded handler
 - Controllers access instances via `InventoryModel.get(tostring(player.UserId))`
 - Properties can be modified directly or through custom methods
 - State changes are automatically broadcast to clients via RemoteEvents
@@ -599,7 +599,7 @@ User-scoped models are initialized automatically when players join:
 
 ### Example 2: ShrineModel (Server-Scoped)
 
-The `ShrineModel.lua` file in `src/server/models/server/` demonstrates a Server-scoped model:
+The `ShrineModel.luau` file in `src/server/models/server/` demonstrates a Server-scoped model:
 
 ### Features:
 - Server-scoped (single instance shared by all players)
@@ -611,7 +611,7 @@ The `ShrineModel.lua` file in `src/server/models/server/` demonstrates a Server-
 
 ### Usage in Production:
 Server-scoped models are initialized once when the server starts:
-- `ModelRunner.server.lua` creates the server instance on startup
+- `ModelRunner.server.luau` creates the server instance on startup
 - Controllers access the shared instance via `ShrineModel.get("SERVER")`
 - All players interact with the same model instance
 - State changes sync to all clients via `syncState()` (automatically broadcasts to all)
@@ -619,11 +619,11 @@ Server-scoped models are initialized once when the server starts:
 
 ## File Locations
 
-- **AbstractModel**: `src/server/models/AbstractModel.lua`
-- **ModelRunner**: `src/server/models/ModelRunner.server.lua`
-- **User-Scoped Models**: `src/server/models/user/YourModel.lua`
-- **Server-Scoped Models**: `src/server/models/server/YourModel.lua`
-- **Test Scripts**: `src/server/YourModelTest.server.lua`
+- **AbstractModel**: `src/server/models/AbstractModel.luau`
+- **ModelRunner**: `src/server/models/ModelRunner.server.luau`
+- **User-Scoped Models**: `src/server/models/user/YourModel.luau`
+- **Server-Scoped Models**: `src/server/models/server/YourModel.luau`
+- **Test Scripts**: `src/server/YourModelTest.server.luau`
 
 ## Testing Your Model
 
@@ -702,7 +702,7 @@ local inventory = PlayerInventory.get(tostring(player.UserId))
 
 ### Player Lifecycle Management
 
-Player lifecycle is automatically handled by `ModelRunner.server.lua` in the `models/` folder. The ModelRunner:
+Player lifecycle is automatically handled by `ModelRunner.server.luau` in the `models/` folder. The ModelRunner:
 
 - **Auto-discovers** all models in `models/user/` and `models/server/` folders
 - **Server-scoped models**: Initialized once on server startup with ownerId "SERVER"
@@ -830,7 +830,7 @@ When you create a new model that broadcasts state to clients, you should add it 
 
 ### What are StateEvents?
 
-StateEvents is a centralized module (`src/shared/StateEvents.lua`) that provides:
+StateEvents is a centralized module (`src/shared/StateEvents.luau`) that provides:
 - **Event name constants** - Single source of truth for RemoteEvent names
 - **Exported data types** - Type-safe state data structures for views
 - **Complete MVC type safety** - From model through view
@@ -850,7 +850,7 @@ Reuse an existing event when:
 
 ### Step-by-Step: Adding a New State Event
 
-**1. Open `src/shared/StateEvents.lua`**
+**1. Open `src/shared/StateEvents.luau`**
 
 **2. Add event name constant:**
 
@@ -903,7 +903,7 @@ return StateEvents
 
 ### Example: InventoryModel State Event
 
-**In StateEvents.lua:**
+**In StateEvents.luau:**
 
 ```lua
 Inventory = {
@@ -944,7 +944,7 @@ export type InventoryData = {
 
 ### Example: ShrineModel State Event (Server-Scoped)
 
-**In StateEvents.lua:**
+**In StateEvents.luau:**
 
 ```lua
 Shrine = {
@@ -968,7 +968,7 @@ export type ShrineData = {
 #### User-Scoped Model (Private Data)
 
 ```lua
--- StateEvents.lua
+-- StateEvents.luau
 PlayerQuest = {
     EventName = "PlayerQuestStateChanged",
 },
@@ -986,7 +986,7 @@ export type PlayerQuestData = {
 #### Server-Scoped Model (Public Data)
 
 ```lua
--- StateEvents.lua
+-- StateEvents.luau
 MatchTimer = {
     EventName = "MatchTimerStateChanged",
 },
@@ -1004,7 +1004,7 @@ export type MatchTimerData = {
 
 **Problem:** Views not receiving state updates
 - Check: Does event name match model name? (`InventoryModel` → `"InventoryStateChanged"`)
-- Check: Is the type exported from StateEvents.lua?
+- Check: Is the type exported from StateEvents.luau?
 - Check: Are you using `StateEvents.ModelName.EventName` in view?
 
 **Problem:** Type errors in view

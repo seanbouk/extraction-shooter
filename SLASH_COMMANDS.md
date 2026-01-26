@@ -288,7 +288,7 @@ Arguments are automatically converted to appropriate types:
 No special code is needed! Just create models following the normal MVC pattern:
 
 ```lua
--- src/server/models/user/InventoryModel.lua
+-- src/server/models/user/InventoryModel.luau
 
 function InventoryModel:addGold(amount: number): ()
     self.gold += amount
@@ -315,7 +315,7 @@ That's it! The `/inventorymodel addGold 100` command is now automatically availa
 
 ### Changing Rank Requirement
 
-Edit `SlashCommandService.lua` line 26:
+Edit `SlashCommandService.luau` line 26:
 
 ```lua
 local MIN_RANK = 200  -- Change to your desired rank
@@ -419,18 +419,18 @@ src/
 ├── server/
 │   ├── models/
 │   │   ├── user/           ← User-scoped models (commands operate on player data)
-│   │   │   └── InventoryModel.lua
+│   │   │   └── InventoryModel.luau
 │   │   ├── server/         ← Server-scoped models (commands operate on server data)
-│   │   │   └── ShrineModel.lua
-│   │   └── ModelRunner.server.lua  ← Registers models with SlashCommandService
+│   │   │   └── ShrineModel.luau
+│   │   └── ModelRunner.server.luau  ← Registers models with SlashCommandService
 │   ├── services/
-│   │   └── SlashCommandService.lua  ← Server-side command handler & help system
+│   │   └── SlashCommandService.luau  ← Server-side command handler & help system
 │   └── controllers/
-│       ├── AbstractController.lua   ← Base class with getAvailableActions()
-│       └── BazaarController.lua     ← Example with action discovery
+│       ├── AbstractController.luau   ← Base class with getAvailableActions()
+│       └── BazaarController.luau     ← Example with action discovery
 └── client/
-    ├── SlashCommandClient.client.lua  ← Client-side command listener
-    └── ChatMessageClient.client.lua   ← Displays command feedback in chat
+    ├── SlashCommandClient.client.luau  ← Client-side command listener
+    └── ChatMessageClient.client.luau   ← Displays command feedback in chat
 ```
 
 ## Summary

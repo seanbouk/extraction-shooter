@@ -234,7 +234,7 @@ else:
 
 ### 3. Generate View File
 
-**Location**: `Source/ReplicatedFirst/views/{ViewName}.client.lua`
+**Location**: `Source/ReplicatedFirst/views/{ViewName}.client.luauu`
 
 **Structure**:
 
@@ -448,7 +448,7 @@ After generation, provide:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Created Files:
-  📁 Source/ReplicatedFirst/views/{ViewName}.client.lua
+  📁 Source/ReplicatedFirst/views/{ViewName}.client.luau
 
 Pattern Detected: {Pattern} ({PatternDescription})
 

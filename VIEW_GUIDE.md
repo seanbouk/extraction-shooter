@@ -116,7 +116,7 @@ Does view need server communication?
 
 ### Step 2: Create Your View File
 
-Create a new LocalScript in `src/client/views/YourView.client.lua`:
+Create a new LocalScript in `src/client/views/YourView.client.luau`:
 
 ```lua
 --!strict
@@ -166,12 +166,12 @@ print("YourView: Initialized")
 
 ## File Locations
 
-- **Your Views**: `src/client/views/YourView.client.lua`
+- **Your Views**: `src/client/views/YourView.client.luau`
 - **Network Module** (for server communication): `ReplicatedStorage/Network.luau`
 
 ## Example: CashMachineView
 
-The `CashMachineView.client.lua` file demonstrates **Pattern B: Intent-Based with Server Validation**:
+The `CashMachineView.client.luau` file demonstrates **Pattern B: Intent-Based with Server Validation**:
 
 ### Features:
 - Uses CollectionService to find all "CashMachine" tagged instances
@@ -202,7 +202,7 @@ This demonstrates the key MVC principle: **immediate client feedback** followed 
 
 ## Example: StatusBarView
 
-The `StatusBarView.client.lua` file demonstrates **Pattern C: State Observation and UI Updates**:
+The `StatusBarView.client.luau` file demonstrates **Pattern C: State Observation and UI Updates**:
 
 ### Features:
 - Uses CollectionService to find all "StatusBar" tagged ScreenGui instances
@@ -421,7 +421,7 @@ modelStateChanged:FireServer()
 
 #### IntentActions (View → Controller)
 
-All intent action strings are centralized in `src/shared/IntentActions.lua`:
+All intent action strings are centralized in `src/shared/IntentActions.luau`:
 
 ```lua
 local IntentActions = require(ReplicatedStorage:WaitForChild("IntentActions"))
@@ -434,7 +434,7 @@ shrineIntent:FireServer(IntentActions.Shrine.Donate)
 
 #### StateEvents (Model → View)
 
-All state event names and data types are centralized in `src/shared/StateEvents.lua`:
+All state event names and data types are centralized in `src/shared/StateEvents.luau`:
 
 ```lua
 local StateEvents = require(ReplicatedStorage:WaitForChild("StateEvents"))
@@ -461,7 +461,7 @@ When creating views that observe model state, you use StateEvents to get type-sa
 
 ### What are StateEvents?
 
-StateEvents is a centralized module (`src/shared/StateEvents.lua`) that provides:
+StateEvents is a centralized module (`src/shared/StateEvents.luau`) that provides:
 - **Event name constants** - Single source of truth for RemoteEvent names
 - **Exported data types** - Type-safe state data structures
 - **Complete MVC type safety** - From model through view
@@ -724,7 +724,7 @@ end
 **Problem:** Type errors when accessing data properties
 - Check: Are you using the correct exported type? (StateEvents.ModelData)
 - Check: Does the type definition match the model's actual properties?
-- Fix: Update StateEvents.lua to match model's getState() return value
+- Fix: Update StateEvents.luau to match model's getState() return value
 
 **Problem:** Receiving wrong player's data
 - Check: Is this a user-scoped model using fire("owner")?

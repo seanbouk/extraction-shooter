@@ -22,7 +22,7 @@ I'll guide you through creating a new Roblox model that follows this project's A
 ## Reference Files
 
 Before generating code, I will read these stable reference files to ensure accuracy:
-- `Source/ServerScriptService/models/AbstractModel.lua` - Base class pattern and required methods
+- `Source/ServerScriptService/models/AbstractModel.luau` - Base class pattern and required methods
 - `Source/ReplicatedStorage/Network.luau` - Network state structure and type exports
 - `MODEL_GUIDE.md` - Complete model documentation with examples and patterns
 
@@ -91,16 +91,16 @@ I will:
 When generating the model, I will:
 
 1. **Read reference files**:
-   - Use Read tool on `Source/ServerScriptService/models/AbstractModel.lua` to understand the base class API
+   - Use Read tool on `Source/ServerScriptService/models/AbstractModel.luau` to understand the base class API
    - Read `MODEL_GUIDE.md` for complete pattern examples and conventions
    - Read `Source/ReplicatedStorage/Network.luau` to understand state structure
    - Understand: inheritance setup, type definitions, .new()/.get()/.remove() pattern
    - Note the syncState() calls in all state-modifying methods
 
 2. **Generate model file** at correct location:
-   - User scope: `Source/ServerScriptService/models/user/{ModelName}.lua`
-   - Server scope: `Source/ServerScriptService/models/server/{ModelName}.lua`
-   - Entity scope: `Source/ServerScriptService/models/entity/{ModelName}.lua`
+   - User scope: `Source/ServerScriptService/models/user/{ModelName}.luau`
+   - Server scope: `Source/ServerScriptService/models/server/{ModelName}.luau`
+   - Entity scope: `Source/ServerScriptService/models/entity/{ModelName}.luau`
 
 3. **For Entity models specifically**:
    - Constructor requires `modelId` parameter: `function Model.new(ownerId: string, modelId: string)`

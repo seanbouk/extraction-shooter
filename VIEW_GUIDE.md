@@ -236,6 +236,66 @@ Don't use event methods when:
 - ❌ You need server validation (use Network.Intent instead)
 - ❌ You're updating based on game state (use Network.State:Observe instead)
 
+### Modal Window Support
+
+AbstractView provides automatic modal window coordination. When a ScreenGui is tagged with "ModalWindow", AbstractView automatically handles mutual exclusivity - opening one modal closes all others.
+
+#### How It Works
+
+1. Designer adds "ModalWindow" tag to a ScreenGui in Studio (via Tag Editor)
+2. View calls `view:initialize(setupFn)` as normal - no code changes needed
+3. AbstractView detects the "ModalWindow" tag and auto-registers behavior
+4. When any modal's `Enabled` becomes `true`, a shared "ModalOpenedEvent" fires
+5. All other modals receive the event and set `Enabled = false`
+
+#### Example: FavoursView (Modal)
+
+```lua
+--!strict
+
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local AbstractView = require(ReplicatedFirst:WaitForChild("AbstractView"))
+
+local view = AbstractView.new("FavoursView", "Favours")
+local toggleEvent = view:createEvent("FavoursToggleEvent")
+
+local function setupFavours(favours: Instance)
+    local screenGui = favours :: ScreenGui
+    screenGui.Enabled = false
+
+    toggleEvent.Event:Connect(function()
+        screenGui.Enabled = not screenGui.Enabled
+    end)
+end
+
+view:initialize(setupFavours)
+-- Modal behavior is automatic if ScreenGui has "ModalWindow" tag!
+```
+
+#### Studio Setup
+
+1. Create your ScreenGui in StarterGui
+2. Add your view's tag (e.g., "Favours")
+3. **Add "ModalWindow" tag** via View > Tags (or Alt+T)
+4. Both tags should be on the same ScreenGui
+
+#### When to Use Modal Windows
+
+Use "ModalWindow" tag when:
+- Only one panel should be visible at a time
+- Opening one panel should close others (e.g., inventory, shop, settings)
+
+Don't use "ModalWindow" tag when:
+- Multiple panels can be open simultaneously
+- The UI should stay visible (e.g., status bar, minimap, health bar)
+
+#### Technical Details
+
+- Modal coordination uses a shared BindableEvent ("ModalOpenedEvent") in PlayerScripts
+- The event is created lazily when the first modal initializes
+- Each modal listens to `GetPropertyChangedSignal("Enabled")` to detect when it opens
+- Modal behavior is set up after the view's setupFn completes
+
 ## Example: CashMachineView
 
 The `CashMachineView.client.luau` file demonstrates **Pattern B: Intent-Based with Server Validation**:

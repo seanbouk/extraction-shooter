@@ -109,6 +109,7 @@ Views are LocalScripts that observe state and update visual elements:
 - Observe state changes via Bolt RemoteProperty (Network.State.*) using Observe() callback
 - Observe() fires immediately with current state - no need to request initial state
 - Can target server-created objects (visible to all) or client-only objects
+- **Modal Support**: ScreenGuis tagged with "ModalWindow" automatically close when another modal opens
 - Examples: InventoryUI, ScoreboardDisplay, InteractableObject
 
 **[📖 See the View Development Guide](VIEW_GUIDE.md)** for step-by-step instructions on creating views. The guide includes a complete example using `CashMachineView`.

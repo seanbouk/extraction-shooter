@@ -72,6 +72,30 @@ What type of instance will be tagged with "{TagName}"?
 
 **Instance type**:
 
+### Step 3.5: Modal Window (ScreenGui Only)
+
+**Only shown if instance type is ScreenGui**
+
+Should this view be a modal window? Modal windows automatically close when another modal opens.
+
+**Examples of modal windows:**
+- Inventory panel
+- Shop UI
+- Settings menu
+- Favours/Candles panels
+
+**Examples of NON-modal windows:**
+- Status bar (always visible)
+- Health bar (always visible)
+- Minimap (always visible)
+- HUD elements
+
+**Is this a modal window?** (Yes/No):
+
+**If Yes:**
+- The "ModalWindow" tag will be added to Studio Setup Requirements
+- No code changes needed - AbstractView handles this automatically
+
 ### Step 4: User Actions (Pattern B Detection)
 
 Does this view need to send user actions to the server?
@@ -179,6 +203,7 @@ I'll display a comprehensive summary showing:
 - Actions to send (if Pattern B)
 - States to observe (if Pattern C)
 - Immediate feedback (if Pattern A)
+- **Modal window status** (if ScreenGui)
 - Expected hierarchy with children
 - Studio setup requirements
 
@@ -515,6 +540,15 @@ Studio Setup Requirements:
    - ⚠️  Tag is case-sensitive! Must be exactly "{TagName}"
    - DO NOT tag the children, only the root instance
 
+{If isModal:}
+4. **Add ModalWindow tag for automatic modal behavior**
+   - With the ScreenGui still selected
+   - Add tag: "ModalWindow"
+   - This enables automatic mutual exclusivity with other modals
+
+{If isModal:}
+5. **Save and test**
+{If not isModal:}
 4. **Save and test**
    - Save the place
    - Start Play mode (F5)

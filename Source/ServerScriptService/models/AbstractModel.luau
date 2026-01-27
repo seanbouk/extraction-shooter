@@ -11,7 +11,7 @@ AbstractModel.__index = AbstractModel
 
 local registries: { [string]: { [string]: AbstractModel } } = {}
 
-type ModelScope = "User" | "Server" | "Entity"
+type ModelScope = "User" | "Server" | "UserEntity"
 
 export type AbstractModel = typeof(setmetatable({} :: {
 	ownerId: string,
@@ -30,9 +30,9 @@ function AbstractModel.new(modelName: string, ownerId: string, scope: ModelScope
 	self._scope = scope
 	self._syncScope = syncScope
 
-	-- Validate Entity scope has modelId
-	if scope == "Entity" and not modelId then
-		error("Entity-scoped models require a modelId parameter")
+	-- Validate UserEntity scope has modelId
+	if scope == "UserEntity" and not modelId then
+		error("UserEntity-scoped models require a modelId parameter")
 	end
 
 	-- Validate User/Server scopes don't have modelId
@@ -56,7 +56,7 @@ function AbstractModel.getOrCreate(modelName: string, ownerId: string, construct
 		registries[modelName] = {}
 	end
 
-	-- Create composite key for Entity scope
+	-- Create composite key for UserEntity scope
 	local registryKey = if modelId then ownerId .. "_" .. modelId else ownerId
 
 	if registries[modelName][registryKey] then
@@ -77,7 +77,7 @@ function AbstractModel.removeInstance(modelName: string, ownerId: string, modelI
 	end
 end
 
--- Remove all entity instances for a given owner (for Entity scope cleanup)
+-- Remove all user entity instances for a given owner (for UserEntity scope cleanup)
 function AbstractModel.removeAllEntitiesForOwner(modelName: string, ownerId: string): ()
 	if not registries[modelName] then
 		return
@@ -126,8 +126,8 @@ function AbstractModel:_applyLoadedData(loadedData: { [string]: any }?): ()
 end
 
 function AbstractModel:syncState(skipPersistence: boolean?): ()
-	-- Queue persistence for User and Entity scoped models
-	if not skipPersistence and (self._scope == "User" or self._scope == "Entity") then
+	-- Queue persistence for User and UserEntity scoped models
+	if not skipPersistence and (self._scope == "User" or self._scope == "UserEntity") then
 		PersistenceService:queueWrite(self._modelName, self.ownerId, self, self.modelId)
 	end
 
@@ -138,7 +138,7 @@ function AbstractModel:syncState(skipPersistence: boolean?): ()
 	local syncScope = self._syncScope or (self._scope == "Server" and "all" or "owner")
 
 	if syncScope == "owner" then
-		-- User and Entity scoped models (or override): Send only to owner
+		-- User and UserEntity scoped models (or override): Send only to owner
 		local userId = tonumber(self.ownerId)
 		if userId then
 			local player = Players:GetPlayerByUserId(userId)

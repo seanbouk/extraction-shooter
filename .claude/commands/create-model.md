@@ -12,11 +12,11 @@ I'll guide you through creating a new Roblox model that follows this project's A
 - **Three scopes**:
   - `User`: Per-player, persistent (saved to DataStore). One instance per player. Example: InventoryModel
   - `Server`: Shared, ephemeral (resets on restart). One instance for all players. Example: ShrineModel
-  - `Entity`: Per-player, persistent (saved to DataStore). Multiple instances per player. Example: PetModel
+  - `UserEntity`: Per-player, persistent (saved to DataStore). Multiple instances per player. Example: PetModel
 - **File locations**:
   - User models → `Source/ServerScriptService/models/user/`
   - Server models → `Source/ServerScriptService/models/server/`
-  - Entity models → `Source/ServerScriptService/models/entity/`
+  - UserEntity models → `Source/ServerScriptService/models/userEntities/`
 - **Auto-discovery**: ModelRunner automatically discovers and initializes models (no manual registration needed)
 
 ## Reference Files
@@ -43,11 +43,11 @@ What should your model be named?
 
 ### Step 2: Model Scope
 
-Does this model need to be **User-scoped**, **Server-scoped**, or **Entity-scoped**?
+Does this model need to be **User-scoped**, **Server-scoped**, or **UserEntity-scoped**?
 
 - **User scope**: Per-player data that persists - one instance per player (like inventory, quest progress, player stats)
 - **Server scope**: Shared data that all players see - one instance for server (like shrines, leaderboards, world state)
-- **Entity scope**: Per-player data that persists - multiple instances per player (like pets, bases, character slots)
+- **UserEntity scope**: Per-player data that persists - multiple instances per player (like pets, bases, character slots)
 
 ### Step 3: Properties
 
@@ -60,7 +60,7 @@ For each property, I'll ask for:
 
 **Reserved names** (cannot use): ownerId, _modelName, _scope, _stateProperty
 
-**Note for Entity models**: Entity-scoped models automatically include a `modelId` property (managed by AbstractModel). You only need to define your custom properties here.
+**Note for UserEntity models**: UserEntity-scoped models automatically include a `modelId` property (managed by AbstractModel). You only need to define your custom properties here.
 
 ### Step 4: Method Design
 
@@ -100,15 +100,15 @@ When generating the model, I will:
 2. **Generate model file** at correct location:
    - User scope: `Source/ServerScriptService/models/user/{ModelName}.luau`
    - Server scope: `Source/ServerScriptService/models/server/{ModelName}.luau`
-   - Entity scope: `Source/ServerScriptService/models/entity/{ModelName}.luau`
+   - UserEntity scope: `Source/ServerScriptService/models/userEntities/{ModelName}.luau`
 
-3. **For Entity models specifically**:
+3. **For UserEntity models specifically**:
    - Constructor requires `modelId` parameter: `function Model.new(ownerId: string, modelId: string)`
    - get() method requires `modelId`: `function Model.get(ownerId: string, modelId: string)`
    - remove() method requires `modelId`: `function Model.remove(ownerId: string, modelId: string)`
    - Must implement `loadAllForOwner(ownerId)` static method
    - Must implement `removeAllEntitiesForOwner(ownerId)` static method
-   - See MODEL_GUIDE.md Entity template for complete pattern
+   - See MODEL_GUIDE.md UserEntity template for complete pattern
 
 4. **Edit Network.luau**:
    - Read current file first

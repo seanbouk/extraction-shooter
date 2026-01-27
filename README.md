@@ -83,8 +83,8 @@ Models represent authoritative game state and live exclusively on the server:
 - Three scopes available:
   - **User-scoped**: One per player, persistent (e.g., inventory, progress)
   - **Server-scoped**: Shared by all, ephemeral (e.g., match timer, shrine)
-  - **Entity-scoped**: Multiple per player, persistent (e.g., pets, bases, character slots)
-- Examples: InventoryModel (User), ShrineModel (Server), PetModel (Entity)
+  - **UserEntity-scoped**: Multiple per player, persistent (e.g., pets, bases, character slots)
+- Examples: InventoryModel (User), ShrineModel (Server), PetModel (UserEntity)
 
 **[📖 See the Model Development Guide](MODEL_GUIDE.md)** for step-by-step instructions on creating models. The guide includes a complete example using `InventoryModel`.
 
@@ -299,8 +299,8 @@ These checklists provide step-by-step guidance for adding new components to your
 
 ### Adding a New Model
 
-1. ✓ **Choose scope**: User (per-player, single instance, persistent), Server (shared, ephemeral), or Entity (per-player, multiple instances, persistent). See [MODEL_GUIDE.md](MODEL_GUIDE.md) for decision tree.
-2. ✓ **Create model file** in `src/server/models/user/`, `src/server/models/server/`, or `src/server/models/entity/`
+1. ✓ **Choose scope**: User (per-player, single instance, persistent), Server (shared, ephemeral), or UserEntity (per-player, multiple instances, persistent). See [MODEL_GUIDE.md](MODEL_GUIDE.md) for decision tree.
+2. ✓ **Create model file** in `src/server/models/user/`, `src/server/models/server/`, or `src/server/models/userEntities/`
 3. ✓ **Extend AbstractModel** with proper inheritance pattern (`setmetatable`)
 4. ✓ **Define properties** in the exported type (using `typeof(setmetatable(...))`)
 5. ✓ **Implement `.new()`** method with AbstractModel.new("ModelName", ownerId, scope)

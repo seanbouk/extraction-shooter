@@ -31,7 +31,7 @@ local MAX_MESSAGE_LENGTH = 30000 -- ~30KB, well under Bolt's 32,767 byte maximum
 
 local userModels: { [string]: any } = {}
 local serverModels: { [string]: any } = {}
-local entityModels: { [string]: { class: any, modelName: string } } = {}
+local userEntityModels: { [string]: { class: any, modelName: string } } = {}
 local controllers: { [string]: { instance: any, remoteEvent: RemoteEvent, originalName: string } } = {}
 
 local commandRemote: RemoteEvent = nil
@@ -175,15 +175,15 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 			helpText ..= "\n"
 		end
 
-		local entityModelNames = {}
-		for name, _ in entityModels do
-			table.insert(entityModelNames, name)
+		local userEntityModelNames = {}
+		for name, _ in userEntityModels do
+			table.insert(userEntityModelNames, name)
 		end
-		table.sort(entityModelNames)
+		table.sort(userEntityModelNames)
 
-		if #entityModelNames > 0 then
-			helpText ..= "ENTITY MODELS (multiple per player):\n"
-			for _, name in entityModelNames do
+		if #userEntityModelNames > 0 then
+			helpText ..= "USER ENTITY MODELS (multiple per player):\n"
+			for _, name in userEntityModelNames do
 				helpText ..= `  /{name}\n`
 			end
 			helpText ..= "\n"
@@ -215,24 +215,24 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 
 		local modelClass = userModels[target] or serverModels[target]
 		if not modelClass then
-			local entityInfo = entityModels[target]
-			if entityInfo then
-				modelClass = entityInfo.class
+			local userEntityInfo = userEntityModels[target]
+			if userEntityInfo then
+				modelClass = userEntityInfo.class
 			end
 		end
 
 		if modelClass then
 			local isUserModel = userModels[target] ~= nil
-			local entityInfo = entityModels[target]
-			local isEntityModel = entityInfo ~= nil
-			local scope = isUserModel and "USER" or (isEntityModel and "ENTITY" or "SERVER")
+			local userEntityInfo = userEntityModels[target]
+			local isUserEntityModel = userEntityInfo ~= nil
+			local scope = isUserModel and "USER" or (isUserEntityModel and "USER ENTITY" or "SERVER")
 
 			local modelInstance
 			if isUserModel then
 				modelInstance = modelClass.get(tostring(player.UserId))
-			elseif isEntityModel then
-				-- For Entity models, get any instance to show available methods
-				local instances = AbstractModel.getAllInstances(entityInfo.modelName)
+			elseif isUserEntityModel then
+				-- For UserEntity models, get any instance to show available methods
+				local instances = AbstractModel.getAllInstances(userEntityInfo.modelName)
 				local prefix = tostring(player.UserId) .. "_"
 				for registryKey, instance in pairs(instances) do
 					if registryKey:sub(1, #prefix) == prefix then
@@ -244,7 +244,7 @@ local function showHelp(player: Player, targetName: string?): (boolean, string)
 				if not modelInstance then
 					-- If no instances exist, still show what methods would be available
 					-- by using the class's metatable
-					return true, `=== /{target} (ENTITY MODEL) ===\n\nNo instances exist. Create an instance first to see available methods.`
+					return true, `=== /{target} (USER ENTITY MODEL) ===\n\nNo instances exist. Create an instance first to see available methods.`
 				end
 			else
 				modelInstance = modelClass.get("SERVER")
@@ -464,19 +464,19 @@ local function queryModelState(player: Player, modelName: string?): (boolean, st
 			end
 		end
 
-		-- Display Entity-scoped models
-		local entityModelNames = {}
-		for name, _ in entityModels do
-			table.insert(entityModelNames, name)
+		-- Display UserEntity-scoped models
+		local userEntityModelNames = {}
+		for name, _ in userEntityModels do
+			table.insert(userEntityModelNames, name)
 		end
-		table.sort(entityModelNames)
+		table.sort(userEntityModelNames)
 
-		if #entityModelNames > 0 then
-			for _, name in entityModelNames do
-				local modelInfo = entityModels[name]
+		if #userEntityModelNames > 0 then
+			for _, name in userEntityModelNames do
+				local modelInfo = userEntityModels[name]
 				local instances = AbstractModel.getAllInstances(modelInfo.modelName)
 
-				output ..= `--- {name:upper()} (ENTITY) ---\n`
+				output ..= `--- {name:upper()} (USER ENTITY) ---\n`
 
 				if instances and next(instances) then
 					-- Display instances for requesting player only
@@ -529,7 +529,7 @@ local function queryModelState(player: Player, modelName: string?): (boolean, st
 			end
 		end
 
-		if #userModelNames == 0 and #serverModelNames == 0 and #entityModelNames == 0 then
+		if #userModelNames == 0 and #serverModelNames == 0 and #userEntityModelNames == 0 then
 			output ..= "No models registered.\n"
 		end
 
@@ -537,10 +537,10 @@ local function queryModelState(player: Player, modelName: string?): (boolean, st
 	else
 		local target = modelName:lower()
 
-		-- Try to find model in User, Server, or Entity scopes
+		-- Try to find model in User, Server, or UserEntity scopes
 		local modelClass = userModels[target]
 		local isServerModel = false
-		local isEntityModel = false
+		local isUserEntityModel = false
 
 		if not modelClass then
 			modelClass = serverModels[target]
@@ -548,10 +548,10 @@ local function queryModelState(player: Player, modelName: string?): (boolean, st
 		end
 
 		if not modelClass then
-			local entityInfo = entityModels[target]
-			if entityInfo then
-				modelClass = entityInfo.class
-				isEntityModel = true
+			local userEntityInfo = userEntityModels[target]
+			if userEntityInfo then
+				modelClass = userEntityInfo.class
+				isUserEntityModel = true
 			end
 		end
 
@@ -559,11 +559,11 @@ local function queryModelState(player: Player, modelName: string?): (boolean, st
 			return false, `Model '{modelName}' not found`
 		end
 
-		-- Handle Entity models differently
-		if isEntityModel then
-			local entityInfo = entityModels[target]
-			local instances = AbstractModel.getAllInstances(entityInfo.modelName)
-			local output = `=== {target:upper()} (ENTITY) ===\n\n`
+		-- Handle UserEntity models differently
+		if isUserEntityModel then
+			local userEntityInfo = userEntityModels[target]
+			local instances = AbstractModel.getAllInstances(userEntityInfo.modelName)
+			local output = `=== {target:upper()} (USER ENTITY) ===\n\n`
 
 			if instances and next(instances) then
 				-- Display instances for requesting player only
@@ -743,8 +743,8 @@ function SlashCommandService:registerModels(modelList: { { class: any, name: str
 			userModels[name:lower()] = modelClass
 		elseif scope == "Server" then
 			serverModels[name:lower()] = modelClass
-		elseif scope == "Entity" then
-			entityModels[name:lower()] = { class = modelClass, modelName = name }
+		elseif scope == "UserEntity" then
+			userEntityModels[name:lower()] = { class = modelClass, modelName = name }
 		end
 	end
 end
@@ -801,10 +801,10 @@ function SlashCommandService:createTextChatCommands(): ()
 		command.Parent = textCommands
 	end
 
-	-- Create a command for each entity-scoped model
-	for modelName, _ in entityModels do
+	-- Create a command for each user-entity-scoped model
+	for modelName, _ in userEntityModels do
 		local command = Instance.new("TextChatCommand")
-		command.Name = `custom_entitymodel_{modelName}`
+		command.Name = `custom_userentitymodel_{modelName}`
 		command.PrimaryAlias = `/{modelName:lower()}`
 		command.Parent = textCommands
 	end

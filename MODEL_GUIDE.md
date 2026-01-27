@@ -37,9 +37,9 @@ Server-scoped models are **per-server instance** and **ephemeral** (not saved):
 - **Use Cases**: Match state, server events, shared game state
 - **Example**: `ShrineModel` - shared by all players in the server
 
-### Entity-Scoped Models (`models/entity/`)
+### UserEntity-Scoped Models (`models/userEntities/`)
 
-Entity-scoped models are **per-player instances** and **persistent** (saved to DataStore):
+UserEntity-scoped models are **per-player instances** and **persistent** (saved to DataStore):
 
 - **Lifecycle**: Multiple instances per player, created on-demand, destroyed when player leaves
 - **Persistence**: Automatically saved to DataStore with composite keys (ModelName_UserId_ModelId)
@@ -54,7 +54,7 @@ Entity-scoped models are **per-player instances** and **persistent** (saved to D
 |-------|----------|------------|------------|-------------------|---------|
 | **User** | `models/user/` | ✅ Yes | ✅ Yes | ❌ One per player | Player inventory, progress, settings |
 | **Server** | `models/server/` | ❌ No | ❌ No | ❌ One for server | Match scores, timers, shared game state |
-| **Entity** | `models/entity/` | ✅ Yes | ✅ Yes | ✅ Many per player | Pets, bases, character slots, equipment |
+| **UserEntity** | `models/userEntities/` | ✅ Yes | ✅ Yes | ✅ Many per player | Pets, bases, character slots, equipment |
 
 ## Creating a New Model
 
@@ -76,10 +76,10 @@ All models inherit from `AbstractModel.luau` which provides:
 Use this decision tree to determine which scope your model needs:
 
 **Question 1: Does each player need multiple instances of this data?**
-- **Yes** → **Entity-scoped** (place in `models/entity/`)
-  - Player has multiple pets: EntityModel
-  - Player has multiple bases: EntityModel
-  - Player has multiple character slots: EntityModel
+- **Yes** → **UserEntity-scoped** (place in `models/userEntities/`)
+  - Player has multiple pets: UserEntityModel
+  - Player has multiple bases: UserEntityModel
+  - Player has multiple character slots: UserEntityModel
 - **No** → Continue to Question 2
 
 **Question 2: Does each player have their own separate copy of this data?**
@@ -121,6 +121,7 @@ Before creating your model, decide which scope it needs:
 
 - **User-Scoped**: Place in `src/server/models/user/YourModel.luau` and pass `"User"` to AbstractModel
 - **Server-Scoped**: Place in `src/server/models/server/YourModel.luau` and pass `"Server"` to AbstractModel
+- **UserEntity-Scoped**: Place in `src/server/models/userEntities/YourModel.luau` and pass `"UserEntity"` to AbstractModel
 
 ### Step 3: Create Your Model File
 
@@ -214,7 +215,7 @@ end
 return YourModel
 ```
 
-#### For Entity-Scoped Models (`models/entity/YourModel.luau`):
+#### For UserEntity-Scoped Models (`models/userEntities/YourModel.luau`):
 
 ```lua
 --!strict
@@ -232,9 +233,9 @@ export type YourModel = typeof(setmetatable({} :: {
 }, YourModel)) & AbstractModel.AbstractModel
 
 function YourModel.new(ownerId: string, modelId: string): YourModel
-	-- Entity models require both ownerId and modelId
+	-- UserEntity models require both ownerId and modelId
 	-- Optional: Pass "all" as 5th parameter for broadcast sync instead of owner-only
-	local self = AbstractModel.new("YourModel", ownerId, "Entity", modelId) :: any
+	local self = AbstractModel.new("YourModel", ownerId, "UserEntity", modelId) :: any
 	setmetatable(self, YourModel)
 
 	-- Initialize your properties
@@ -292,7 +293,7 @@ end
 -- Add your model's methods here
 function YourModel:yourMethod(): ()
 	-- Implementation
-	self:syncState() -- Entity models default to owner-only sync
+	self:syncState() -- UserEntity models default to owner-only sync
 end
 
 -- Example: Method that broadcasts to all players (requires "all" syncScope in constructor)
@@ -305,16 +306,16 @@ return YourModel
 ```
 
 **Key Differences:**
-- Require path: `script.Parent.Parent.AbstractModel` (up two levels from `user/`, `server/`, or `entity/`)
-- Scope parameter: `"User"` for user-scoped, `"Server"` for server-scoped, `"Entity"` for entity-scoped
-- Entity models require `modelId` parameter in constructor and all static methods
-- Entity models must implement `loadAllForOwner()` and `removeAllEntitiesForOwner()` static methods
-- Access pattern: User uses player UserId, Server uses `"SERVER"`, Entity uses composite `ownerId_modelId`
-- Default sync: Entity models default to owner-only (like User), can override to "all" with 5th parameter to `new()`
+- Require path: `script.Parent.Parent.AbstractModel` (up two levels from `user/`, `server/`, or `userEntities/`)
+- Scope parameter: `"User"` for user-scoped, `"Server"` for server-scoped, `"UserEntity"` for user-entity-scoped
+- UserEntity models require `modelId` parameter in constructor and all static methods
+- UserEntity models must implement `loadAllForOwner()` and `removeAllEntitiesForOwner()` static methods
+- Access pattern: User uses player UserId, Server uses `"SERVER"`, UserEntity uses composite `ownerId_modelId`
+- Default sync: UserEntity models default to owner-only (like User), can override to "all" with 5th parameter to `new()`
 
-### Step 3b: Entity ID Management Strategies
+### Step 3b: UserEntity ID Management Strategies
 
-For Entity-scoped models, choosing an appropriate ID strategy is important. The framework doesn't prescribe a specific approach - select based on your application's needs:
+For UserEntity-scoped models, choosing an appropriate ID strategy is important. The framework doesn't prescribe a specific approach - select based on your application's needs:
 
 #### Sequential Numeric IDs
 **Pattern**: "1", "2", "3", "4", ...
@@ -623,6 +624,7 @@ Server-scoped models are initialized once when the server starts:
 - **ModelRunner**: `src/server/models/ModelRunner.server.luau`
 - **User-Scoped Models**: `src/server/models/user/YourModel.luau`
 - **Server-Scoped Models**: `src/server/models/server/YourModel.luau`
+- **UserEntity-Scoped Models**: `src/server/models/userEntities/YourModel.luau`
 - **Test Scripts**: `src/server/YourModelTest.server.luau`
 
 ## Testing Your Model
@@ -822,7 +824,7 @@ Players.PlayerRemoving:Connect(function(player: Player)
 end)
 ```
 
-**Important**: You don't need to manually add your model to ModelRunner. Simply create it in the `models/user/` or `models/server/` folder and it will be automatically discovered and managed.
+**Important**: You don't need to manually add your model to ModelRunner. Simply create it in the `models/user/`, `models/server/`, or `models/userEntities/` folder and it will be automatically discovered and managed.
 
 ## Working with StateEvents
 

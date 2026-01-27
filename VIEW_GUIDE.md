@@ -394,6 +394,7 @@ AbstractView handles:
 - Finding all existing tagged instances
 - Setting up listeners for dynamically added instances
 - Spawning setup functions in separate threads to avoid blocking
+- Automatically filtering out StarterGui instances (only initializes PlayerGui clones)
 
 ### 2. Use WaitForChild
 

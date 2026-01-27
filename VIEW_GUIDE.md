@@ -121,16 +121,14 @@ Create a new LocalScript in `src/client/views/YourView.client.luau`:
 ```lua
 --!strict
 
-local CollectionService = game:GetService("CollectionService")
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Import Network module
+local AbstractView = require(ReplicatedFirst:WaitForChild("AbstractView"))
 local Network = require(ReplicatedStorage:WaitForChild("Network"))
 
--- Constants
-local TAG_NAME = "YourTag"
+local view = AbstractView.new("YourView", "YourTag")
 
--- Sets up a single tagged instance
 local function setupInstance(instance: Instance)
 	-- Wait for required children
 	local button = instance:WaitForChild("Button") :: TextButton
@@ -143,38 +141,108 @@ local function setupInstance(instance: Instance)
 		-- Optional: Send intent to server via Bolt ReliableEvent
 		-- Network.Intent.YourFeature:FireServer(Network.Actions.YourFeature.Action, data)
 	end)
-
-	print(`YourView: Setup complete for {instance.Name}`)
 end
 
--- Initialize all existing tagged instances
-for _, instance in ipairs(CollectionService:GetTagged(TAG_NAME)) do
-	task.spawn(function()
-		setupInstance(instance)
-	end)
-end
-
--- Handle dynamically added instances
-CollectionService:GetInstanceAddedSignal(TAG_NAME):Connect(function(instance: Instance)
-	task.spawn(function()
-		setupInstance(instance)
-	end)
-end)
-
-print("YourView: Initialized")
+view:initialize(setupInstance)
 ```
+
+**Key points:**
+- Extend `AbstractView` instead of writing CollectionService boilerplate
+- `view:initialize(setupFn)` handles both existing and dynamically added instances
+- The setup function receives each tagged instance for configuration
 
 ## File Locations
 
 - **Your Views**: `src/client/views/YourView.client.luau`
 - **Network Module** (for server communication): `ReplicatedStorage/Network.luau`
+- **AbstractView Module**: `ReplicatedFirst/AbstractView.luau`
+
+## Using AbstractView
+
+AbstractView is a base module that standardizes view initialization and provides helpers for view-to-view communication.
+
+### API
+
+- `AbstractView.new(viewName, tag)` - Create a new view instance
+- `view:initialize(setupFn)` - Initialize with CollectionService pattern (handles both existing and dynamically added instances)
+- `view:createEvent(eventName)` - Create a BindableEvent in PlayerScripts for view-to-view communication
+- `view:getEvent(eventName, timeout?)` - Get a BindableEvent from PlayerScripts (with optional timeout, default 5 seconds)
+
+### Basic Usage
+
+```lua
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local AbstractView = require(ReplicatedFirst:WaitForChild("AbstractView"))
+
+local view = AbstractView.new("MyView", "MyTag")
+
+local function setupInstance(instance: Instance)
+    -- Your setup logic here
+end
+
+view:initialize(setupInstance)
+```
+
+### View-to-View Communication
+
+The event methods (`createEvent`, `getEvent`) enable direct communication between UI views without going through the server. This is useful for coordinating UI behavior like toggling panels.
+
+**Example: FavoursView creates a toggle event**
+
+```lua
+local view = AbstractView.new("FavoursView", "Favours")
+local toggleEvent = view:createEvent("FavoursToggleEvent")
+
+local function setupFavours(favours: Instance)
+    local screenGui = favours :: ScreenGui
+    screenGui.Enabled = false
+
+    toggleEvent.Event:Connect(function()
+        screenGui.Enabled = not screenGui.Enabled
+    end)
+end
+
+view:initialize(setupFavours)
+```
+
+**Example: StatusBarView gets the event to fire when button is clicked**
+
+```lua
+local view = AbstractView.new("StatusBarView", "StatusBar")
+
+local function setupStatusBar(statusBar: Instance)
+    local favoursButton = statusBar:FindFirstChild("FavoursButton") :: TextButton?
+    if favoursButton then
+        favoursButton.Activated:Connect(function()
+            local toggleEvent = view:getEvent("FavoursToggleEvent")
+            if toggleEvent then
+                toggleEvent:Fire()
+            end
+        end)
+    end
+end
+
+view:initialize(setupStatusBar)
+```
+
+### When to Use Event Methods
+
+Use `createEvent` and `getEvent` when:
+- ✅ One UI view needs to trigger behavior in another UI view
+- ✅ The communication is purely client-side (no server validation needed)
+- ✅ You want to decouple views from each other (no direct references)
+
+Don't use event methods when:
+- ❌ You need server validation (use Network.Intent instead)
+- ❌ You're updating based on game state (use Network.State:Observe instead)
 
 ## Example: CashMachineView
 
 The `CashMachineView.client.luau` file demonstrates **Pattern B: Intent-Based with Server Validation**:
 
 ### Features:
-- Uses CollectionService to find all "CashMachine" tagged instances
+- Extends AbstractView for standardized initialization
+- Targets all "CashMachine" tagged instances
 - Connects to ProximityPrompt.Triggered event
 - Provides immediate visual/audio feedback (particles + sound)
 - Sends intent to server to withdraw gold
@@ -182,59 +250,99 @@ The `CashMachineView.client.luau` file demonstrates **Pattern B: Intent-Based wi
 
 ### Pattern Used:
 ```lua
--- At the top of the file
+--!strict
+
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local AbstractView = require(ReplicatedFirst:WaitForChild("AbstractView"))
 local Network = require(ReplicatedStorage:WaitForChild("Network"))
+
+local cashMachineIntent = Network.Intent.CashMachine
+
 local WITHDRAW_AMOUNT = 50
 
--- In the setup function
-proximityPrompt.Triggered:Connect(function(player: Player)
-	-- Immediate visual/audio feedback
-	local particleCount = particleEmitter.Rate
-	particleEmitter:Emit(particleCount)
-	sound:Play()
+local view = AbstractView.new("CashMachineView", "CashMachine")
 
-	-- Send intent to server via Bolt ReliableEvent
-	Network.Intent.CashMachine:FireServer(Network.Actions.CashMachine.Withdraw, WITHDRAW_AMOUNT)
-end)
+local function setupCashMachine(cashMachine: Instance)
+	local base = cashMachine:WaitForChild("Base")
+
+	local proximityPrompt = base:WaitForChild("ProximityPrompt") :: ProximityPrompt
+	local particleEmitter = base:WaitForChild("ParticleEmitter") :: ParticleEmitter
+	local sound = base:WaitForChild("Sound") :: Sound
+
+	proximityPrompt.Triggered:Connect(function(player: Player)
+		-- Immediate visual/audio feedback
+		local particleCount = particleEmitter.Rate
+		particleEmitter:Emit(particleCount)
+		sound:Play()
+
+		-- Send intent to server via Bolt ReliableEvent
+		cashMachineIntent:FireServer(Network.Actions.CashMachine.Withdraw, WITHDRAW_AMOUNT)
+	end)
+end
+
+view:initialize(setupCashMachine)
 ```
 
 This demonstrates the key MVC principle: **immediate client feedback** followed by **server authority** through the intent system.
 
 ## Example: StatusBarView
 
-The `StatusBarView.client.luau` file demonstrates **Pattern C: State Observation and UI Updates**:
+The `StatusBarView.client.luau` file demonstrates **Pattern C: State Observation and UI Updates** with **view-to-view communication**:
 
 ### Features:
-- Uses CollectionService to find all "StatusBar" tagged ScreenGui instances
+- Extends AbstractView for standardized initialization
+- Targets all "StatusBar" tagged ScreenGui instances
 - Observes inventory state via Bolt RemoteProperty (Network.State.Inventory)
 - Bolt handles per-player filtering automatically for User-scoped models
 - Updates UI TextLabels with gold and treasure amounts
-- No user interaction - purely observes and displays model state
+- Uses `getEvent()` to communicate with FavoursView for toggle functionality
 
 ### Pattern Used:
 ```lua
--- At the top of the file
+--!strict
+
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local AbstractView = require(ReplicatedFirst:WaitForChild("AbstractView"))
 local Network = require(ReplicatedStorage:WaitForChild("Network"))
 
--- Type for the data received from server
-type InventoryData = {
-	ownerId: string,
-	gold: number,
-	treasure: number,
-}
+local inventoryState = Network.State.Inventory
 
--- In the setup function
-local function updateLabels(gold: number, treasure: number)
-	goldLabel.Text = `💰 {gold}`
-	treasureLabel.Text = `💎 {treasure}`
+local view = AbstractView.new("StatusBarView", "StatusBar")
+
+local function setupStatusBar(statusBar: Instance)
+	local frame = statusBar:WaitForChild("Frame")
+	local goldLabel = frame:WaitForChild("GoldLabel") :: TextLabel
+	local treasureLabel = frame:WaitForChild("TreasureLabel") :: TextLabel
+
+	-- Setup FavoursButton toggle (view-to-view communication)
+	local favoursButton = frame:FindFirstChild("FavoursButton") :: TextButton?
+	if favoursButton then
+		favoursButton.Activated:Connect(function()
+			local toggleEvent = view:getEvent("FavoursToggleEvent")
+			if toggleEvent then
+				toggleEvent:Fire()
+			end
+		end)
+	end
+
+	local function updateLabels(gold: number, treasure: number)
+		goldLabel.Text = `💰 {gold}`
+		treasureLabel.Text = `💎 {treasure}`
+	end
+
+	-- Observe state changes from server via Bolt RemoteProperty
+	-- Observe() fires immediately with current state, then on each update
+	inventoryState:Observe(function(data: Network.InventoryState)
+		-- No filtering needed - Bolt handles per-player filtering automatically
+		updateLabels(data.gold, data.treasure)
+	end)
 end
 
--- Observe state changes from server via Bolt RemoteProperty
--- Observe() fires immediately with current state, then on each update
-Network.State.Inventory:Observe(function(inventoryData: InventoryData)
-	-- No filtering needed - Bolt handles per-player filtering automatically
-	updateLabels(inventoryData.gold, inventoryData.treasure)
-end)
+view:initialize(setupStatusBar)
 ```
 
 ### Key Concepts:
@@ -265,17 +373,27 @@ The Bolt Observe() pattern eliminates common issues with the old RemoteEvent pat
 
 ## Best Practices
 
-### 1. Use CollectionService
+### 1. Use AbstractView
 
-Tag instances in the Workspace or UI and use CollectionService to find them:
+Always extend AbstractView instead of writing CollectionService boilerplate:
 
 ```lua
-local CollectionService = game:GetService("CollectionService")
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local AbstractView = require(ReplicatedFirst:WaitForChild("AbstractView"))
 
-for _, instance in ipairs(CollectionService:GetTagged("YourTag")) do
-	setupInstance(instance)
+local view = AbstractView.new("YourView", "YourTag")
+
+local function setupInstance(instance: Instance)
+	-- Your setup logic
 end
+
+view:initialize(setupInstance)
 ```
+
+AbstractView handles:
+- Finding all existing tagged instances
+- Setting up listeners for dynamically added instances
+- Spawning setup functions in separate threads to avoid blocking
 
 ### 2. Use WaitForChild
 
@@ -286,19 +404,7 @@ local button = instance:WaitForChild("Button")
 local sound = button:WaitForChild("ClickSound")
 ```
 
-### 3. Spawn Setup Functions
-
-Use `task.spawn` to avoid blocking when setting up multiple instances:
-
-```lua
-for _, instance in ipairs(CollectionService:GetTagged(TAG_NAME)) do
-	task.spawn(function()
-		setupInstance(instance)
-	end)
-end
-```
-
-### 4. Type Safety
+### 3. Type Safety
 
 Always use `--!strict` and type your variables:
 

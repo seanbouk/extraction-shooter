@@ -8,7 +8,7 @@ I'll guide you through creating a new Roblox view that follows this project's Vi
 
 ## Project View Architecture
 
-- **No AbstractView base class**: Views follow consistent patterns, not inheritance
+- **AbstractView base class**: Views extend `AbstractView` which provides CollectionService boilerplate and event helpers
 - **Three main patterns**:
   - **Pattern A**: Pure client-side feedback (particles, sounds, animations) - no server communication
   - **Pattern B**: Intent-based with server validation (send actions to controllers via Network.Intent)
@@ -274,43 +274,26 @@ else:
 	4. Names must match exactly (case-sensitive)
 ]]
 
-local CollectionService = game:GetService("CollectionService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-{If B or C:}local Players = game:GetService("Players")
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
+{If B or C:}local ReplicatedStorage = game:GetService("ReplicatedStorage")
+{If B:}local Players = game:GetService("Players")
 
-{If B or C:}
-local Network = require(ReplicatedStorage:WaitForChild("Network"))
-{If B or C:}local localPlayer = Players.LocalPlayer
+local AbstractView = require(ReplicatedFirst:WaitForChild("AbstractView"))
+{If B or C:}local Network = require(ReplicatedStorage:WaitForChild("Network"))
 
+{If B:}local localPlayer = Players.LocalPlayer
 {If B:}local {controller}Intent = Network.Intent.{Controller}
 {If C:}local {model}State = Network.State.{Model}
 
-local TAG_NAME = "{TagValue}"
 {If A with constants:}local {CONSTANT_NAME} = {value}
 
-{If C and observation is module-level:}
--- ============================================================================
--- STATE OBSERVATION (Pattern C)
--- ============================================================================
+local view = AbstractView.new("{ViewName}", "{TagValue}")
 
--- Observe {model} state changes
-{model}State:Observe(function(data: Network.{Model}State)
-	-- Update all tagged instances
-	for _, instance in CollectionService:GetTagged(TAG_NAME) do
-		-- Find UI elements
-		local {child} = instance:FindFirstChild("{ChildName}", true)
-		if {child} then
-			-- Update UI with state
-			{child}.Text = `{property}: {data.{property}}`
-		end
-	end
-end)
+{If needs to create events for other views:}
+-- Create event for view-to-view communication
+local {eventName} = view:createEvent("{EventName}")
 
--- ============================================================================
--- INSTANCE SETUP
--- ============================================================================
-
-local function setupInstance(instance: Instance)
+local function setup{InstanceType}(instance: Instance)
 	{For each child:}
 	local {childName} = instance:WaitForChild("{ChildName}") :: {ChildType}
 
@@ -333,96 +316,130 @@ local function setupInstance(instance: Instance)
 		)
 	end)
 
-	{If C and observation is instance-level:}
-	-- Observe state changes for this instance
+	{If needs to get events from other views:}
+	-- Get event from another view for view-to-view communication
+	local {eventName} = view:getEvent("{EventName}")
+	if {eventName} then
+		{trigger}.{Event}:Connect(function()
+			{eventName}:Fire()
+		end)
+	end
+
+	{If C - observe state:}
+	-- Observe state changes
 	{model}State:Observe(function(data: Network.{Model}State)
-		-- Update this instance
+		-- Update UI with state
 		{updateCode}
 	end)
-
-	print(`{ViewName}: Setup complete for {instance.Name}`)
 end
 
--- Initialize all existing tagged instances
-for _, instance in ipairs(CollectionService:GetTagged(TAG_NAME)) do
-	task.spawn(function()
-		setupInstance(instance)
-	end)
-end
-
--- Handle dynamically added instances
-CollectionService:GetInstanceAddedSignal(TAG_NAME):Connect(function(instance: Instance)
-	task.spawn(function()
-		setupInstance(instance)
-	end)
-end)
-
-print("{ViewName}: Initialized")
+view:initialize(setup{InstanceType})
 ```
 
 ### 4. Pattern-Specific Code Generation
 
 **Pattern A - Pure Client Feedback:**
 ```lua
--- Example: Particle effect on proximity
-proximityPrompt.Triggered:Connect(function(player: Player)
-	if player ~= localPlayer then
-		return
-	end
+local function setupPart(part: Instance)
+	local proximityPrompt = part:WaitForChild("ProximityPrompt") :: ProximityPrompt
+	local particleEmitter = part:WaitForChild("ParticleEmitter") :: ParticleEmitter
+	local sound = part:WaitForChild("Sound") :: Sound
 
-	particleEmitter:Emit(20)
-	sound:Play()
-end)
+	proximityPrompt.Triggered:Connect(function(player: Player)
+		if player ~= localPlayer then
+			return
+		end
+		particleEmitter:Emit(20)
+		sound:Play()
+	end)
+end
+
+view:initialize(setupPart)
 ```
 
 **Pattern B - Intent-Based:**
 ```lua
--- Example: Button sends purchase intent
-button.Activated:Connect(function()
-	shopIntent:FireServer(
-		Network.Actions.Shop.BuyItem,
-		itemId,
-		quantity
-	)
-end)
-```
+local function setupShop(shopUI: Instance)
+	local button = shopUI:WaitForChild("BuyButton") :: TextButton
 
-**Pattern C - State Observation (Module-Level):**
-```lua
--- Before setupInstance function
-inventoryState:Observe(function(data: Network.InventoryState)
-	-- Update all status bars
-	for _, instance in CollectionService:GetTagged(TAG_NAME) do
-		local goldLabel = instance:FindFirstChild("GoldLabel", true)
-		if goldLabel then
-			goldLabel.Text = `Gold: {data.gold}`
-		end
-	end
-end)
+	button.Activated:Connect(function()
+		shopIntent:FireServer(
+			Network.Actions.Shop.BuyItem,
+			itemId,
+			quantity
+		)
+	end)
+end
+
+view:initialize(setupShop)
 ```
 
 **Pattern C - State Observation (Instance-Level):**
 ```lua
--- Inside setupInstance function
-healthState:Observe(function(data: Network.HealthState)
-	-- Update this specific health bar
-	healthBar.Size = UDim2.new(data.currentHealth / data.maxHealth, 0, 1, 0)
-	healthLabel.Text = `{data.currentHealth}/{data.maxHealth}`
-end)
+local function setupHealthBar(healthBar: Instance)
+	local bar = healthBar:WaitForChild("Bar") :: Frame
+	local label = healthBar:WaitForChild("Label") :: TextLabel
+
+	healthState:Observe(function(data: Network.HealthState)
+		bar.Size = UDim2.new(data.currentHealth / data.maxHealth, 0, 1, 0)
+		label.Text = `{data.currentHealth}/{data.maxHealth}`
+	end)
+end
+
+view:initialize(setupHealthBar)
 ```
 
 **Pattern B+C - Combination:**
 ```lua
--- Module-level state observation
-inventoryState:Observe(function(data: Network.InventoryState)
-	currentGold = data.gold
-	-- Update affordability UI
-end)
+local function setupInventory(inventoryUI: Instance)
+	local buyButton = inventoryUI:WaitForChild("BuyButton") :: TextButton
+	local goldLabel = inventoryUI:WaitForChild("GoldLabel") :: TextLabel
 
--- In setupInstance - button sends intent
-buyButton.Activated:Connect(function()
-	shopIntent:FireServer(Network.Actions.Shop.BuyItem, itemId)
-end)
+	buyButton.Activated:Connect(function()
+		shopIntent:FireServer(Network.Actions.Shop.BuyItem, itemId)
+	end)
+
+	inventoryState:Observe(function(data: Network.InventoryState)
+		goldLabel.Text = `Gold: {data.gold}`
+	end)
+end
+
+view:initialize(setupInventory)
+```
+
+**View-to-View Communication:**
+```lua
+-- FavoursView creates the event
+local view = AbstractView.new("FavoursView", "Favours")
+local toggleEvent = view:createEvent("FavoursToggleEvent")
+
+local function setupFavours(favours: Instance)
+	local screenGui = favours :: ScreenGui
+	screenGui.Enabled = false
+
+	toggleEvent.Event:Connect(function()
+		screenGui.Enabled = not screenGui.Enabled
+	end)
+end
+
+view:initialize(setupFavours)
+
+-- StatusBarView gets and fires the event
+local view = AbstractView.new("StatusBarView", "StatusBar")
+
+local function setupStatusBar(statusBar: Instance)
+	local favoursButton = statusBar:FindFirstChild("FavoursButton") :: TextButton?
+	if favoursButton then
+		favoursButton.Activated:Connect(function()
+			local toggleEvent = view:getEvent("FavoursToggleEvent")
+			if toggleEvent then
+				toggleEvent:Fire()
+			end
+		end)
+	end
+end
+
+view:initialize(setupStatusBar)
 ```
 
 ### 5. Validation During Generation

@@ -337,16 +337,18 @@ These checklists provide step-by-step guidance for adding new components to your
 1. ✓ **Decide which pattern**: A (pure client), B (intent-based), or C (state observation). See [VIEW_GUIDE.md](VIEW_GUIDE.md) for decision tree.
 2. ✓ **Verify Network.Actions constants exist** (if sending intents - Pattern B)
 3. ✓ **Verify Network.State.* exists** (if observing state - Pattern C)
-4. ✓ **Create view file** in `src/client/views/` (name it `YourView.client.luauu`)
-5. ✓ **Define tag constant** for CollectionService (e.g., `local TAG = "YourFeature"`)
-6. ✓ **Create setupInstance function** for initialization
-7. ✓ **Connect to user interactions** (buttons, prompts, proximity prompts, etc.)
-8. ✓ **Use Network.Actions constants** when firing intents (e.g., `Network.Intent.YourFeature:FireServer(Network.Actions.YourFeature.Action)`)
-9. ✓ **Use Network.State and Observe()** when observing state changes:
-   - Observe state: `Network.State.YourModel:Observe(function(data) ... end)`
-   - Observe() fires immediately with current value - no need to request initial state
-10. ✓ **Create UI in Roblox Studio** and tag with CollectionService
-11. ✓ **Test in Play mode** (F5 in Studio)
+4. ✓ **Create view file** in `src/client/views/` (name it `YourView.client.luau`)
+5. ✓ **Extend AbstractView** with `AbstractView.new("YourView", "YourTag")`
+6. ✓ **Create setup function** for instance initialization
+7. ✓ **Call view:initialize(setupFn)** to handle CollectionService pattern
+8. ✓ **Connect to user interactions** (buttons, prompts, proximity prompts, etc.)
+9. ✓ **Use Network.Actions constants** when firing intents (e.g., `Network.Intent.YourFeature:FireServer(Network.Actions.YourFeature.Action)`)
+10. ✓ **Use Network.State and Observe()** when observing state changes:
+    - Observe state: `Network.State.YourModel:Observe(function(data) ... end)`
+    - Observe() fires immediately with current value - no need to request initial state
+11. ✓ **Use view:createEvent/getEvent** for view-to-view communication (optional)
+12. ✓ **Create UI in Roblox Studio** and tag with CollectionService
+13. ✓ **Test in Play mode** (F5 in Studio)
 
 **See [VIEW_GUIDE.md](VIEW_GUIDE.md) for detailed examples.**
 
@@ -612,12 +614,13 @@ return WeaponShopController
 ```lua
 --!strict
 
-local CollectionService = game:GetService("CollectionService")
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local AbstractView = require(ReplicatedFirst:WaitForChild("AbstractView"))
 local Network = require(ReplicatedStorage:WaitForChild("Network"))
 
-local TAG = "WeaponShop"
+local view = AbstractView.new("WeaponShopView", "WeaponShop")
 
 -- Listen for shop state changes (purchases by any player)
 Network.State.WeaponShop:Observe(function(shopData)
@@ -626,7 +629,7 @@ Network.State.WeaponShop:Observe(function(shopData)
     end
 end)
 
-local function setupInstance(shopUI: ScreenGui)
+local function setupShopUI(shopUI: Instance)
     -- Find weapon buttons
     local swordButton = shopUI:FindFirstChild("SwordButton", true) :: TextButton
     local bowButton = shopUI:FindFirstChild("BowButton", true) :: TextButton
@@ -652,27 +655,18 @@ local function setupInstance(shopUI: ScreenGui)
         print("Requesting to purchase Staff...")
         Network.Intent.WeaponShop:FireServer(Network.Actions.WeaponShop.PurchaseWeapon, "Staff")
     end)
-
-    print("WeaponShopView initialized for:", shopUI:GetFullName())
 end
 
--- Set up all existing tagged instances
-for _, instance in CollectionService:GetTagged(TAG) do
-    setupInstance(instance :: ScreenGui)
-end
-
--- Set up newly tagged instances
-CollectionService:GetInstanceAddedSignal(TAG):Connect(function(instance)
-    setupInstance(instance :: ScreenGui)
-end)
+view:initialize(setupShopUI)
 ```
 
 **Key points:**
+- Extends AbstractView for standardized initialization
 - Uses Network.Actions.WeaponShop.PurchaseWeapon for type-safe intent
 - Uses Network.Intent.WeaponShop to fire intents to server
 - Observes shop state changes via Network.State.WeaponShop:Observe()
 - Observe() fires immediately with current state and on each update
-- Immediate feedback via print statements
+- `view:initialize(setupShopUI)` handles CollectionService boilerplate
 - StatusBarView (already exists) will show gold updates automatically
 
 ### Step 7: Create UI in Roblox Studio

@@ -2,6 +2,7 @@
 
 local CollectionService = game:GetService("CollectionService")
 local Players = game:GetService("Players")
+local StarterGui = game:GetService("StarterGui")
 
 local AbstractView = {}
 AbstractView.__index = AbstractView
@@ -14,6 +15,10 @@ export type AbstractView = typeof(setmetatable({} :: {
 	_eventCache: { [string]: BindableEvent },
 }, AbstractView))
 
+local function isInStarterGui(instance: Instance): boolean
+	return instance:IsDescendantOf(StarterGui)
+end
+
 function AbstractView.new(viewName: string, tag: string): AbstractView
 	local self = setmetatable({}, AbstractView) :: any
 	self._viewName = viewName
@@ -24,15 +29,19 @@ end
 
 function AbstractView:initialize(setupFn: (Instance) -> ()): ()
 	for _, instance in ipairs(CollectionService:GetTagged(self._tag)) do
-		task.spawn(function()
-			setupFn(instance)
-		end)
+		if not isInStarterGui(instance) then
+			task.spawn(function()
+				setupFn(instance)
+			end)
+		end
 	end
 
 	CollectionService:GetInstanceAddedSignal(self._tag):Connect(function(instance: Instance)
-		task.spawn(function()
-			setupFn(instance)
-		end)
+		if not isInStarterGui(instance) then
+			task.spawn(function()
+				setupFn(instance)
+			end)
+		end
 	end)
 end
 

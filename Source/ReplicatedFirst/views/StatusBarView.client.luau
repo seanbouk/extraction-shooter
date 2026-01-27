@@ -21,34 +21,19 @@
 	            └── TreasureLabelEmpty (TextLabel) - red TextColor3
 ]]
 
-local CollectionService = game:GetService("CollectionService")
-local Players = game:GetService("Players")
+local ReplicatedFirst = game:GetService("ReplicatedFirst")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local AbstractView = require(ReplicatedFirst:WaitForChild("AbstractView"))
 local Network = require(ReplicatedStorage:WaitForChild("Network"))
 local ViewState = require(ReplicatedStorage:WaitForChild("ViewState"))
+
 local inventoryState = Network.State.Inventory
 
-local STATUS_BAR_TAG = "StatusBar"
 local GOLD_EMOJI = "💰"
 local TREASURE_EMOJI = "💎"
-local FAVOURS_TOGGLE_EVENT_NAME = "FavoursToggleEvent"
 
-local favoursToggleEvent: BindableEvent? = nil
-
-local function getFavoursToggleEvent(): BindableEvent?
-	if favoursToggleEvent then
-		return favoursToggleEvent
-	end
-	local playerScripts = Players.LocalPlayer:WaitForChild("PlayerScripts")
-	local event = playerScripts:WaitForChild(FAVOURS_TOGGLE_EVENT_NAME, 5)
-	if event and event:IsA("BindableEvent") then
-		favoursToggleEvent = event :: BindableEvent
-		return favoursToggleEvent
-	end
-	warn("StatusBarView: Could not find FavoursToggleEvent in PlayerScripts")
-	return nil
-end
+local view = AbstractView.new("StatusBarView", "StatusBar")
 
 local function setupStatusBar(statusBar: Instance)
 	if not statusBar:IsA("ScreenGui") then
@@ -65,7 +50,7 @@ local function setupStatusBar(statusBar: Instance)
 	local favoursButton = frame:FindFirstChild("FavoursButton") :: TextButton?
 	if favoursButton then
 		favoursButton.Activated:Connect(function()
-			local toggleEvent = getFavoursToggleEvent()
+			local toggleEvent = view:getEvent("FavoursToggleEvent")
 			if toggleEvent then
 				toggleEvent:Fire()
 			end
@@ -107,14 +92,4 @@ local function setupStatusBar(statusBar: Instance)
 	end)
 end
 
-for _, statusBar in ipairs(CollectionService:GetTagged(STATUS_BAR_TAG)) do
-	task.spawn(function()
-		setupStatusBar(statusBar)
-	end)
-end
-
-CollectionService:GetInstanceAddedSignal(STATUS_BAR_TAG):Connect(function(statusBar: Instance)
-	task.spawn(function()
-		setupStatusBar(statusBar)
-	end)
-end)
+view:initialize(setupStatusBar)

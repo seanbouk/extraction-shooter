@@ -57,6 +57,17 @@ local function setupStatusBar(statusBar: Instance)
 		end)
 	end
 
+	-- Setup CandlesButton toggle
+	local candlesButton = frame:FindFirstChild("CandlesButton") :: TextButton?
+	if candlesButton then
+		candlesButton.Activated:Connect(function()
+			local toggleEvent = view:getEvent("CandlesToggleEvent")
+			if toggleEvent then
+				toggleEvent:Fire()
+			end
+		end)
+	end
+
 	-- Setup ViewState for treasure label visual states
 	local treasureLabelStates: ViewState.ViewStateInstance? = nil
 	local templatesFolder = frame:FindFirstChild("_Templates")

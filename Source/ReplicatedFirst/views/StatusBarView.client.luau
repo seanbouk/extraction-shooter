@@ -22,6 +22,7 @@
 ]]
 
 local CollectionService = game:GetService("CollectionService")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Network = require(ReplicatedStorage:WaitForChild("Network"))
@@ -31,6 +32,23 @@ local inventoryState = Network.State.Inventory
 local STATUS_BAR_TAG = "StatusBar"
 local GOLD_EMOJI = "💰"
 local TREASURE_EMOJI = "💎"
+local FAVOURS_TOGGLE_EVENT_NAME = "FavoursToggleEvent"
+
+local favoursToggleEvent: BindableEvent? = nil
+
+local function getFavoursToggleEvent(): BindableEvent?
+	if favoursToggleEvent then
+		return favoursToggleEvent
+	end
+	local playerScripts = Players.LocalPlayer:WaitForChild("PlayerScripts")
+	local event = playerScripts:WaitForChild(FAVOURS_TOGGLE_EVENT_NAME, 5)
+	if event and event:IsA("BindableEvent") then
+		favoursToggleEvent = event :: BindableEvent
+		return favoursToggleEvent
+	end
+	warn("StatusBarView: Could not find FavoursToggleEvent in PlayerScripts")
+	return nil
+end
 
 local function setupStatusBar(statusBar: Instance)
 	if not statusBar:IsA("ScreenGui") then
@@ -42,6 +60,17 @@ local function setupStatusBar(statusBar: Instance)
 
 	local goldLabel = frame:WaitForChild("GoldLabel") :: TextLabel
 	local treasureLabel = frame:WaitForChild("TreasureLabel") :: TextLabel
+
+	-- Setup FavoursButton toggle
+	local favoursButton = frame:FindFirstChild("FavoursButton") :: TextButton?
+	if favoursButton then
+		favoursButton.Activated:Connect(function()
+			local toggleEvent = getFavoursToggleEvent()
+			if toggleEvent then
+				toggleEvent:Fire()
+			end
+		end)
+	end
 
 	-- Setup ViewState for treasure label visual states
 	local treasureLabelStates: ViewState.ViewStateInstance? = nil

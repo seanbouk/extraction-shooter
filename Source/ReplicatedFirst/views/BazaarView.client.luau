@@ -11,11 +11,14 @@
 
 	Expected hierarchy:
 	Bazaar [Tagged "Bazaar"]
-	└─ Base (Part/Model)
-	   ├─ Sound
-	   ├─ ParticleEmitter
-	   ├─ ProximityPrompt
-	   └─ Decal
+	├─ Base (Part/Model)
+	│  ├─ Sound
+	│  ├─ ParticleEmitter
+	│  ├─ ProximityPrompt
+	│  └─ Decal
+	└─ _Templates (Folder) [optional, for ViewState]
+	   ├─ BaseClosed (Part) - Material=Plastic
+	   └─ BaseOpen (Part)   - Material=Neon
 ]]
 
 local CollectionService = game:GetService("CollectionService")
@@ -25,6 +28,7 @@ local Players = game:GetService("Players")
 local localPlayer = Players.LocalPlayer
 
 local Network = require(ReplicatedStorage:WaitForChild("Network"))
+local ViewState = require(ReplicatedStorage:WaitForChild("ViewState"))
 
 local bazaarIntent = Network.Intent.Bazaar
 local inventoryState = Network.State.Inventory
@@ -63,14 +67,36 @@ local function setupBazaar(bazaar: Instance)
 		return
 	end
 
-	local function updateState(gold: number)
-		if gold >= TREASURE_COST then
-			basePart.Material = Enum.Material.Neon
-			proximityPrompt.Enabled = true
-		else
-			basePart.Material = Enum.Material.Plastic
-			proximityPrompt.Enabled = false
+	-- Check for _Templates folder with ViewState templates
+	local templatesFolder = bazaar:FindFirstChild("_Templates")
+	local baseStates: ViewState.ViewStateInstance? = nil
+
+	if templatesFolder then
+		local closedTemplate = templatesFolder:FindFirstChild("BaseClosed")
+		local openTemplate = templatesFolder:FindFirstChild("BaseOpen")
+
+		if closedTemplate and openTemplate then
+			baseStates = ViewState.new(closedTemplate, openTemplate)
+			templatesFolder.Parent = nil -- Hide at runtime
 		end
+	end
+
+	local function updateState(gold: number)
+		if baseStates then
+			if gold >= TREASURE_COST then
+				baseStates:apply(basePart, "BaseOpen")
+			else
+				baseStates:apply(basePart, "BaseClosed")
+			end
+		else
+			-- Fallback to direct assignment
+			if gold >= TREASURE_COST then
+				basePart.Material = Enum.Material.Neon
+			else
+				basePart.Material = Enum.Material.Plastic
+			end
+		end
+		proximityPrompt.Enabled = gold >= TREASURE_COST
 	end
 
 	updateState(currentGold)

@@ -28,7 +28,7 @@
         "$className": "Folder",
         "$ignoreUnknownInstances": true,
         "ConfigTypes": {
-          "$path": "Source/ReplicatedStorage/Config/ConfigTypes.luau"
+          "$path": "Source/ReplicatedStorage/Config/ConfigTypes"
         }
       }
     },

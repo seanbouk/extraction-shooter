@@ -92,23 +92,26 @@ Which models will this controller interact with?
 - Controllers bridge user intents to model state changes
 - **User-scoped models**: Per-player data that persists (like InventoryModel, QuestModel) - use `player.UserId`
 - **Server-scoped models**: Shared data all players see (like ShrineModel, LeaderboardModel) - use `"SERVER"`
+- **UserEntity-scoped models**: Multiple instances per player (like FavoursModel, PetsModel) - use `player.UserId` + `entityId`
 
 **Primary model to update**:
 - Model name (must end with "Model")
-- Model scope (User or Server)
+- Model scope (User, Server, or UserEntity)
 
 **Does this controller interact with additional models?** (Yes/No)
 
 If yes, for each additional model:
 - Model name (must end with "Model")
-- Model scope (User or Server)
+- Model scope (User, Server, or UserEntity)
 - Purpose (e.g., "Query item prices", "Check quest requirements")
+- For UserEntity: What parameter provides the entityId?
 
 **Model Existence Validation**:
 
 After collecting all models, I will verify each model file exists at:
 - User-scoped: `Source/ServerScriptService/models/user/{ModelName}.luau`
 - Server-scoped: `Source/ServerScriptService/models/server/{ModelName}.luau`
+- UserEntity-scoped: `Source/ServerScriptService/models/userEntities/{ModelName}.luau`
 
 If any model is not found, I will:
 1. Warn you about the missing model
@@ -337,6 +340,15 @@ local {modelName} = {ModelName}.get(tostring(player.UserId))
 ```lua
 local {modelName} = {ModelName}.get("SERVER")
 ```
+
+**UserEntity-Scoped Model**:
+```lua
+-- IMPORTANT: Always use .get(), never .new()
+-- .get() ensures registry registration for proper state sync
+local {modelName} = {ModelName}.get(tostring(player.UserId), {entityId})
+```
+
+⚠️ **Critical for UserEntity models**: Using `.new()` instead of `.get()` creates an orphan instance that won't be tracked by AbstractModel's registry. This causes `syncState()` to fail silently - the new entity won't sync to clients until server restart.
 
 ### 4. Validation Code Templates
 

@@ -79,6 +79,9 @@ function YourController.new(): YourController
 		local model = YourModel.get(tostring(player.UserId))
 		-- For Server-scoped models: get shared instance
 		-- local model = YourModel.get("SERVER")
+		-- For UserEntity-scoped models: get/create per-entity instance
+		-- IMPORTANT: Always use .get(), never .new() - .get() ensures registry registration
+		-- local entity = YourEntityModel.get(tostring(player.UserId), entityId)
 
 		-- Use Network.Actions constants instead of magic strings
 		if action == Network.Actions.YourFeature.SomeAction then
@@ -700,6 +703,55 @@ yourIntent:FireServer("TestAction", testData)
 - Controllers **update** models
 - Controllers **never read** from models for validation (use server authority)
 - Models handle their own state and broadcasting
+
+### Model Scopes
+
+Controllers interact with three types of model scopes:
+
+**1. User-Scoped Models** (`models/user/`)
+- One instance per player (e.g., InventoryModel, QuestModel)
+- Identified by `ownerId` (player.UserId as string)
+- Data persists per player
+
+```lua
+local inventory = InventoryModel.get(tostring(player.UserId))
+```
+
+**2. Server-Scoped Models** (`models/server/`)
+- Single shared instance for all players (e.g., ShrineModel, LeaderboardModel)
+- Identified by `"SERVER"` constant
+- Data shared across all players
+
+```lua
+local shrine = ShrineModel.get("SERVER")
+```
+
+**3. UserEntity-Scoped Models** (`models/userEntities/`)
+- Multiple instances per player (e.g., FavoursModel, PetsModel)
+- Identified by BOTH `ownerId` AND `modelId`
+- Used for collections of player-owned entities
+
+```lua
+-- IMPORTANT: Always use .get(), never .new()
+-- .get() ensures registry registration for proper state sync
+local favour = FavoursModel.get(tostring(player.UserId), favourId)
+```
+
+**⚠️ Critical: UserEntity `.get()` vs `.new()`**
+
+When creating new UserEntity instances, **always use `.get()`**:
+- `.get()` registers the instance in AbstractModel's registry
+- `.new()` creates an orphan instance not tracked by the registry
+- State sync (`syncState()`) only finds registered instances
+- Using `.new()` will cause state to not sync to clients
+
+```lua
+-- ❌ WRONG: Creates orphan instance, won't sync
+local favour = FavoursModel.new(ownerId, favourId)
+
+-- ✅ CORRECT: Registers instance, syncs properly
+local favour = FavoursModel.get(ownerId, favourId)
+```
 
 ### Controllers ← Views
 - Views **send intents** to controllers via RemoteEvents

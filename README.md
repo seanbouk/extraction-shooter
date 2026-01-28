@@ -114,6 +114,18 @@ Views are LocalScripts that observe state and update visual elements:
 
 **[📖 See the View Development Guide](VIEW_GUIDE.md)** for step-by-step instructions on creating views. The guide includes a complete example using `CashMachineView`.
 
+### Configs (ReplicatedStorage)
+
+Configs are static game data modules that hold tunable values:
+
+- Separate from code - easy to adjust during playtesting
+- Two-part pattern: type definitions (synced via Rojo) + data modules (created in Studio)
+- Type definitions live in `Source/ReplicatedStorage/Config/ConfigTypes/`
+- Config modules are created manually in Studio under `ReplicatedStorage.Config`
+- Examples: item prices, spawn rates, level thresholds, damage values
+
+**[📖 See the Config Development Guide](CONFIG_GUIDE.md)** for step-by-step instructions on creating configs. The guide includes a complete example using `FavoursConfig`.
+
 ### Slash Commands (Admin/Debug Tool)
 
 Slash commands provide a quick way for high-rank users to execute model methods directly from chat:
@@ -352,6 +364,20 @@ These checklists provide step-by-step guidance for adding new components to your
 13. ✓ **Test in Play mode** (F5 in Studio)
 
 **See [VIEW_GUIDE.md](VIEW_GUIDE.md) for detailed examples.**
+
+### Adding a New Config
+
+1. ✓ **Decide if you need a config** - Use for tunable values (prices, rates, thresholds). See [CONFIG_GUIDE.md](CONFIG_GUIDE.md) for decision tree.
+2. ✓ **Create types file** in `Source/ReplicatedStorage/Config/ConfigTypes/{Name}ConfigTypes.luau`
+3. ✓ **Define table types** for any structured data (e.g., `export type PricesTable = { [string]: number }`)
+4. ✓ **Define main config type** (e.g., `export type {Name}Config = { ... }`)
+5. ✓ **Return nil** from types file (types-only module)
+6. ✓ **Create config module in Studio** under `ReplicatedStorage.Config`
+7. ✓ **Import types** from ConfigTypes folder
+8. ✓ **Annotate config variable** with the type for type safety
+9. ✓ **Test in Studio** by requiring in command bar
+
+**See [CONFIG_GUIDE.md](CONFIG_GUIDE.md) for detailed examples.**
 
 ### Updating Network.Actions
 

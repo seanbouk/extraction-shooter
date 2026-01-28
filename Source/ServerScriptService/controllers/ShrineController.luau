@@ -64,7 +64,7 @@ local function donate(inventory: any, shrine: any, player: Player)
 			local favourId = generateFavourId()
 			local ownerId = tostring(player.UserId)
 
-			local favour = FavoursModel.new(ownerId, favourId)
+			local favour = FavoursModel.get(ownerId, favourId)
 			favour:setFavourType(favourType)
 			inventory:addFavourId(favourId)
 

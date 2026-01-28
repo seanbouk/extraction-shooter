@@ -125,20 +125,49 @@ function AbstractModel:_applyLoadedData(loadedData: { [string]: any }?): ()
 	end
 end
 
+-- Aggregate and sync all UserEntity states for an owner
+local function syncAllEntitiesForOwner(modelName: string, ownerId: string, stateProperty: any): ()
+	local registry = registries[modelName]
+	if not registry then
+		return
+	end
+
+	local ownerPrefix = ownerId .. "_"
+	local aggregatedStates: { [string]: any } = {}
+
+	-- Collect all entity states for this owner
+	for registryKey, instance in registry do
+		if registryKey:sub(1, #ownerPrefix) == ownerPrefix then
+			local modelId = registryKey:sub(#ownerPrefix + 1)
+			aggregatedStates[modelId] = (instance :: any):_extractState()
+		end
+	end
+
+	-- Sync the aggregated dictionary to the owner
+	local userId = tonumber(ownerId)
+	if userId then
+		local player = Players:GetPlayerByUserId(userId)
+		if player then
+			stateProperty:SetFor(player, aggregatedStates)
+		end
+	end
+end
+
 function AbstractModel:syncState(skipPersistence: boolean?): ()
 	-- Queue persistence for User and UserEntity scoped models
 	if not skipPersistence and (self._scope == "User" or self._scope == "UserEntity") then
 		PersistenceService:queueWrite(self._modelName, self.ownerId, self, self.modelId)
 	end
 
-	-- Extract current state
-	local state = self:_extractState()
-
 	-- Determine sync scope (can be overridden with _syncScope)
 	local syncScope = self._syncScope or (self._scope == "Server" and "all" or "owner")
 
-	if syncScope == "owner" then
-		-- User and UserEntity scoped models (or override): Send only to owner
+	if self._scope == "UserEntity" then
+		-- UserEntity: Aggregate all entities for owner and sync as dictionary
+		syncAllEntitiesForOwner(self._modelName, self.ownerId, self._stateProperty)
+	elseif syncScope == "owner" then
+		-- User scoped models: Send only to owner
+		local state = self:_extractState()
 		local userId = tonumber(self.ownerId)
 		if userId then
 			local player = Players:GetPlayerByUserId(userId)
@@ -150,6 +179,7 @@ function AbstractModel:syncState(skipPersistence: boolean?): ()
 		end
 	elseif syncScope == "all" then
 		-- Server-scoped models (or override): Broadcast to all
+		local state = self:_extractState()
 		self._stateProperty:Set(state)  -- Bolt global sync
 	end
 end

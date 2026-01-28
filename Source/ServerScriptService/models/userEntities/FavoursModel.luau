@@ -30,6 +30,13 @@ function FavoursModel.remove(ownerId: string, modelId: string): ()
 	AbstractModel.removeInstance("FavoursModel", ownerId, modelId)
 end
 
+-- Calculate max favourId length to stay under DataStore 50 char key limit
+-- Key format: "FavoursModel_ownerId_favourId"
+local function getMaxFavourIdLength(ownerId: string): number
+	local keyPrefix = "FavoursModel_" .. ownerId .. "_"
+	return 50 - #keyPrefix
+end
+
 -- REQUIRED: Load all favour entities for a player
 function FavoursModel.loadAllForOwner(ownerId: string): boolean
 	-- Get the InventoryModel to access favourIds list
@@ -38,9 +45,21 @@ function FavoursModel.loadAllForOwner(ownerId: string): boolean
 
 	-- If favourIds doesn't exist, assume no favours yet
 	local favourIds = (inventory :: any).favourIds or {}
+	local maxIdLength = getMaxFavourIdLength(ownerId)
+	local invalidIds: {string} = {}
 
 	-- Load each favour from DataStore
 	for _, favourId in favourIds do
+		-- Skip IDs that would exceed DataStore key limit
+		if #favourId > maxIdLength then
+			warn(string.format(
+				"[FavoursModel] Skipping invalid favourId '%s' (length %d exceeds max %d) - removing from inventory",
+				favourId, #favourId, maxIdLength
+			))
+			table.insert(invalidIds, favourId)
+			continue
+		end
+
 		local success, loadedData = PersistenceService:loadModel("FavoursModel", ownerId, favourId)
 
 		if not success then
@@ -54,6 +73,11 @@ function FavoursModel.loadAllForOwner(ownerId: string): boolean
 		end
 
 		favour:syncState(true)
+	end
+
+	-- Remove invalid IDs from inventory
+	for _, invalidId in invalidIds do
+		inventory:removeFavourId(invalidId)
 	end
 
 	return true

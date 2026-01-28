@@ -45,10 +45,16 @@ local NetworkConfig = {
 	},
 
 	States = {
+		Favours = {
+			ownerId = "",
+			modelId = "",
+			favourType = "",
+		},
 		Inventory = {
 			ownerId = "",
 			gold = 0,
 			treasure = 0,
+			favourIds = {},
 		},
 		Shrine = {
 			ownerId = "",
@@ -78,10 +84,17 @@ export type CashMachineAction = "Withdraw" | "Deposit"
 export type ShrineAction = "Donate"
 
 -- State Type Exports (manually defined for type safety)
+export type FavoursState = {
+	ownerId: string,
+	modelId: string,
+	favourType: string,
+}
+
 export type InventoryState = {
 	ownerId: string,
 	gold: number,
 	treasure: number,
+	favourIds: {string},
 }
 
 export type ShrineState = {

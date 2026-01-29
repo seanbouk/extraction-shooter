@@ -1,7 +1,7 @@
 --!strict
 
 local AbstractModel = require(script.Parent.Parent.AbstractModel)
-local PersistenceService = require(script.Parent.Parent.Parent.services.PersistenceService)
+local PersistenceService = require(script.Parent.Parent.Parent.services.framework.PersistenceService)
 
 local FavoursModel = {}
 FavoursModel.__index = FavoursModel

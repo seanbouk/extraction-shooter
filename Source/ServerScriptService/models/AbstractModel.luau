@@ -3,7 +3,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Players = game:GetService("Players")
 
-local PersistenceService = require(script.Parent.Parent.services.PersistenceService)
+local PersistenceService = require(script.Parent.Parent.services.framework.PersistenceService)
 local Network = require(ReplicatedStorage.Network)
 
 local AbstractModel = {}

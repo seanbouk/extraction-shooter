@@ -1,8 +1,9 @@
 --!strict
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 
-local CandlesModel = require(script.Parent.Parent.models.serverEntities.CandlesModel)
+local CandlesModel = require(ServerScriptService.models.serverEntities.CandlesModel)
 local CandlesConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("CandlesConfig"))
 
 local CandleService = {}

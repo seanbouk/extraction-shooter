@@ -4,8 +4,8 @@ local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 
 -- Initialize PersistenceService before any models are used
-local PersistenceService = require(script.Parent.Parent.services.PersistenceService)
-PersistenceService.init()
+local ServiceRunner = require(script.Parent.Parent.services.ServiceRunner)
+ServiceRunner.initPersistence()
 
 -- Auto-discover and require all models (skip Abstract)
 local modelsFolder = script.Parent
@@ -68,10 +68,8 @@ if serverEntitiesFolder then
 end
 
 -- Register models with SlashCommandService and initialize it
-local SlashCommandService = require(script.Parent.Parent.services.SlashCommandService)
-SlashCommandService:init()
-SlashCommandService:registerModels(modelInfos)
-SlashCommandService:createTextChatCommands()
+ServiceRunner.initSlashCommands()
+ServiceRunner.registerModels(modelInfos)
 
 -- Initialize Server-scoped models once (ephemeral, shared by all players)
 print("ModelRunner: Initializing Server-scoped models")
@@ -98,13 +96,14 @@ for _, modelInfo in modelInfos do
 end
 
 -- Initialize game services that depend on models
-local CandleService = require(script.Parent.Parent.services.CandleService)
-CandleService.init()
+ServiceRunner.initGameServices()
 
 -- Handle player initialization
 Players.PlayerAdded:Connect(function(player: Player)
 	local ownerId = tostring(player.UserId)
 	print("ModelRunner: Initializing models for player " .. player.Name)
+
+	local PersistenceService = ServiceRunner.getPersistenceService()
 
 	for _, modelInfo in modelInfos do
 		-- Only initialize User-scoped models per player
@@ -153,6 +152,8 @@ local playerRemovingConnection = Players.PlayerRemoving:Connect(function(player:
 	local ownerId = tostring(player.UserId)
 	print("ModelRunner: Cleaning up models for player " .. player.Name)
 
+	local PersistenceService = ServiceRunner.getPersistenceService()
+
 	-- Flush all pending writes for this player before cleanup
 	PersistenceService:flushPlayerWrites(ownerId)
 
@@ -181,6 +182,8 @@ game:BindToClose(function()
 
 	-- Disconnect PlayerRemoving to prevent duplicate saves during shutdown
 	playerRemovingConnection:Disconnect()
+
+	local PersistenceService = ServiceRunner.getPersistenceService()
 
 	-- Flush all remaining player data
 	for _, player in Players:GetPlayers() do

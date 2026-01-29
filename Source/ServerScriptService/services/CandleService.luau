@@ -1,10 +1,12 @@
 --!strict
 
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
 local CandlesModel = require(script.Parent.Parent.models.serverEntities.CandlesModel)
+local CandlesConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("CandlesConfig"))
 
 local CandleService = {}
 
-local CANDLE_LIFETIME_SECONDS = 5
 local CHECK_INTERVAL_SECONDS = 1
 
 local isRunning = false
@@ -15,7 +17,7 @@ local function removeExpiredCandles(): ()
 	local candlesToRemove: { string } = {}
 
 	for entityId, candle in allCandles do
-		if currentTime - candle.createdTime >= CANDLE_LIFETIME_SECONDS then
+		if currentTime - candle.createdTime >= CandlesConfig.lifetimeSeconds then
 			table.insert(candlesToRemove, entityId)
 		end
 	end

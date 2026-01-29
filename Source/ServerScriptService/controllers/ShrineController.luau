@@ -6,6 +6,7 @@ local AbstractController = require(script.Parent.AbstractController)
 local InventoryModel = require(script.Parent.Parent.models.user.InventoryModel)
 local ShrineModel = require(script.Parent.Parent.models.server.ShrineModel)
 local FavoursModel = require(script.Parent.Parent.models.userEntities.FavoursModel)
+local CandlesModel = require(script.Parent.Parent.models.serverEntities.CandlesModel)
 local Network = require(ReplicatedStorage.Network)
 local FavoursConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("FavoursConfig"))
 
@@ -22,6 +23,15 @@ local CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
 local function generateFavourId(): string
 	-- Generate a short unique ID (12 chars) to stay under DataStore 50 char key limit
+	local id = ""
+	for _ = 1, 12 do
+		local index = math.random(1, #CHARS)
+		id = id .. string.sub(CHARS, index, index)
+	end
+	return id
+end
+
+local function generateCandleId(): string
 	local id = ""
 	for _ = 1, 12 do
 		local index = math.random(1, #CHARS)
@@ -58,6 +68,18 @@ end
 local function donate(inventory: any, shrine: any, player: Player)
 	if inventory:spendTreasure(DONATION_AMOUNT) then
 		shrine:donate(tostring(player.UserId), DONATION_AMOUNT)
+
+		-- Create a candle at the player's position
+		local candleId = generateCandleId()
+		local character = player.Character
+		if character then
+			local rootPart = character:FindFirstChild("HumanoidRootPart")
+			if rootPart then
+				local pos = rootPart.Position
+				CandlesModel.create(candleId, tostring(player.UserId), pos.X, pos.Y, pos.Z)
+				print(player.Name .. " lit a candle at the shrine!")
+			end
+		end
 
 		local favourType = rollForFavour()
 		if favourType then

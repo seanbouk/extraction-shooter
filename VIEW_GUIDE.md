@@ -431,6 +431,82 @@ The Bolt Observe() pattern eliminates common issues with the old RemoteEvent pat
 - ❌ Had to filter by ownerId manually for "all" scope
 - ❌ Two separate APIs (OnClientEvent + FireServer)
 
+### Model Scopes and State Formats
+
+**IMPORTANT**: The state format you receive in `Observe()` depends on the model's scope. There are four scopes, and entity-scoped models send **aggregated dictionaries**, not single objects.
+
+#### User Scope (e.g., InventoryModel)
+- One instance per player
+- State sent only to the owner
+- **Format**: Single state object
+
+```lua
+inventoryState:Observe(function(data: Network.InventoryState)
+	-- data is a single object: { ownerId, gold, treasure, ... }
+	updateLabels(data.gold, data.treasure)
+end)
+```
+
+#### Server Scope (e.g., ShrineModel)
+- One instance for the entire server
+- State broadcast to all players
+- **Format**: Single state object
+
+```lua
+shrineState:Observe(function(data: Network.ShrineState)
+	-- data is a single object: { ownerId = "SERVER", treasure, ... }
+	updateShrineDisplay(data.treasure)
+end)
+```
+
+#### UserEntity Scope (e.g., FavoursModel)
+- Multiple instances per player (one per entity)
+- State sent only to the owner
+- **Format**: Dictionary keyed by entityId
+
+```lua
+type FavoursStateDictionary = { [string]: Network.FavoursState }
+
+favoursState:Observe(function(allFavours: FavoursStateDictionary)
+	-- allFavours is a dictionary: { [entityId] = { ownerId, favourType, ... } }
+	clearList()
+	for entityId, favourData in allFavours do
+		addToList(entityId, favourData.favourType)
+	end
+end)
+```
+
+#### ServerEntity Scope (e.g., CandlesModel)
+- Multiple instances shared across all players (one per entity)
+- State broadcast to all players
+- **Format**: Dictionary keyed by entityId
+
+```lua
+type CandlesStateDictionary = { [string]: Network.CandlesState }
+
+local spawnedCandles: { [string]: Model } = {}
+
+candlesState:Observe(function(allCandles: CandlesStateDictionary)
+	-- allCandles is a dictionary: { [entityId] = { positionX, positionY, ... } }
+	for entityId, candleData in allCandles do
+		if not spawnedCandles[entityId] then
+			spawnCandle(entityId, candleData)
+		end
+	end
+end)
+```
+
+#### Quick Reference Table
+
+| Scope | Recipients | State Format | Example |
+|-------|-----------|--------------|---------|
+| User | Owner only | Single object | InventoryModel |
+| Server | All players | Single object | ShrineModel |
+| UserEntity | Owner only | `{ [entityId]: State }` | FavoursModel |
+| ServerEntity | All players | `{ [entityId]: State }` | CandlesModel |
+
+**Common Mistake**: Treating entity-scoped state as a single object. If your Observe callback receives data but nothing happens, check if the model is entity-scoped and iterate the dictionary.
+
 ## Best Practices
 
 ### 1. Use AbstractView

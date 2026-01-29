@@ -152,6 +152,16 @@ I will read Network.luau to validate this state exists and show you available op
 
 **State name** (without "State" suffix):
 
+**What is the model's scope?**
+
+**IMPORTANT**: The state format depends on the model scope:
+- **User** (e.g., InventoryModel) → Single state object, sent to owner only
+- **Server** (e.g., ShrineModel) → Single state object, broadcast to all
+- **UserEntity** (e.g., FavoursModel) → Dictionary `{ [entityId]: State }`, sent to owner only
+- **ServerEntity** (e.g., CandlesModel) → Dictionary `{ [entityId]: State }`, broadcast to all
+
+**Model scope** (User/Server/UserEntity/ServerEntity):
+
 **Which properties from this state will you use?**
 
 I will show you the available properties from Network.luau.
@@ -159,7 +169,7 @@ I will show you the available properties from Network.luau.
 **Properties** (comma-separated):
 
 **What will this view do with these properties?**
-(e.g., "Update labels", "Change UI color", "Show/hide elements")
+(e.g., "Update labels", "Change UI color", "Show/hide elements", "Spawn instances")
 
 ### Step 6: Immediate Feedback (Pattern A Detection)
 
@@ -202,6 +212,8 @@ I'll display a comprehensive summary showing:
 - **Detected Pattern**: A, B, C, or B+C with explanation
 - Actions to send (if Pattern B)
 - States to observe (if Pattern C)
+  - **Model scope** (User/Server/UserEntity/ServerEntity)
+  - **State format** (single object vs dictionary)
 - Immediate feedback (if Pattern A)
 - **Modal window status** (if ScreenGui)
 - Expected hierarchy with children
@@ -432,6 +444,77 @@ end
 view:initialize(setupInventory)
 ```
 
+**Pattern C - ServerEntity Scope (Spawner Pattern):**
+
+For ServerEntity-scoped models, state is an aggregated dictionary. Views typically spawn/track instances:
+```lua
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local Network = require(ReplicatedStorage:WaitForChild("Network"))
+
+local candlesState = Network.State.Candles
+local candleTemplate = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Candle")
+
+-- Track spawned instances by entityId
+local spawnedCandles: { [string]: Model } = {}
+
+-- ServerEntity state is dictionary: { [entityId]: CandlesState }
+type CandlesStateDictionary = { [string]: Network.CandlesState }
+
+local function spawnCandle(entityId: string, data: Network.CandlesState)
+	if spawnedCandles[entityId] then
+		return -- Already spawned
+	end
+
+	local candle = candleTemplate:Clone() :: Model
+	candle:PivotTo(CFrame.new(data.positionX, data.positionY, data.positionZ))
+	candle.Parent = Workspace
+	spawnedCandles[entityId] = candle
+end
+
+-- Observe returns dictionary of ALL entities
+candlesState:Observe(function(allCandles: CandlesStateDictionary)
+	for entityId, candleData in allCandles do
+		spawnCandle(entityId, candleData)
+	end
+end)
+
+print("CandleView: Initialized")
+```
+
+**Pattern C - UserEntity Scope (List Pattern):**
+
+For UserEntity-scoped models, state is a dictionary of entities owned by the local player:
+```lua
+local favoursState = Network.State.Favours
+
+-- UserEntity state is dictionary: { [entityId]: FavoursState }
+type FavoursStateDictionary = { [string]: Network.FavoursState }
+
+local function setupFavoursList(listUI: Instance)
+	local container = listUI:WaitForChild("Container") :: Frame
+
+	favoursState:Observe(function(allFavours: FavoursStateDictionary)
+		-- Clear existing items
+		for _, child in container:GetChildren() do
+			if child:IsA("TextLabel") then
+				child:Destroy()
+			end
+		end
+
+		-- Rebuild from dictionary
+		for entityId, favourData in allFavours do
+			local label = Instance.new("TextLabel")
+			label.Text = favourData.favourType
+			label.Parent = container
+		end
+	end)
+end
+
+view:initialize(setupFavoursList)
+```
+
 **View-to-View Communication:**
 ```lua
 -- FavoursView creates the event
@@ -606,6 +689,11 @@ Next Steps:
    - Check: Is the model calling syncState() after changes?
    - Check: Is Network.State.{Model} available? (check client Output)
 
+   ❌ "Observe fires but nothing happens" (Entity-scoped models)
+   - Check: Is this a UserEntity or ServerEntity scoped model?
+   - Fix: Entity-scoped models send `{ [entityId]: State }` dictionary, not single object
+   - Fix: Iterate the dictionary: `for entityId, data in allEntities do ... end`
+
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 Documentation:
@@ -624,6 +712,7 @@ Documentation:
   {If Pattern C:}
   - Observe() fires immediately with current state - no need to request
   - Bolt handles per-player filtering for User-scoped models automatically
+  - Entity-scoped models (UserEntity/ServerEntity) send dictionaries, not single objects
 ```
 
 ---

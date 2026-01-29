@@ -480,6 +480,7 @@ end)
 - Multiple instances shared across all players (one per entity)
 - State broadcast to all players
 - **Format**: Dictionary keyed by entityId
+- **Important**: Must handle both spawning new entities AND removing entities no longer in state
 
 ```lua
 type CandlesStateDictionary = { [string]: Network.CandlesState }
@@ -488,9 +489,19 @@ local spawnedCandles: { [string]: Model } = {}
 
 candlesState:Observe(function(allCandles: CandlesStateDictionary)
 	-- allCandles is a dictionary: { [entityId] = { positionX, positionY, ... } }
+
+	-- Spawn new entities
 	for entityId, candleData in allCandles do
 		if not spawnedCandles[entityId] then
 			spawnCandle(entityId, candleData)
+		end
+	end
+
+	-- Remove entities no longer in state
+	for entityId, model in spawnedCandles do
+		if not allCandles[entityId] then
+			model:Destroy()
+			spawnedCandles[entityId] = nil
 		end
 	end
 end)
@@ -505,7 +516,13 @@ end)
 | UserEntity | Owner only | `{ [entityId]: State }` | FavoursModel |
 | ServerEntity | All players | `{ [entityId]: State }` | CandlesModel |
 
-**Common Mistake**: Treating entity-scoped state as a single object. If your Observe callback receives data but nothing happens, check if the model is entity-scoped and iterate the dictionary.
+**Common Mistakes with Entity-Scoped Models**:
+
+1. **Treating entity-scoped state as a single object** - If your Observe callback receives data but nothing happens, check if the model is entity-scoped and iterate the dictionary.
+
+2. **Only handling additions, not removals** - When entities can be removed (like candles expiring), your view must compare the incoming state with tracked entities and remove any that are no longer present. Either:
+   - Clear and rebuild: `clearList()` then iterate (simple but may cause flicker)
+   - Diff and update: Spawn new, remove missing (smoother for visual objects)
 
 ## Best Practices
 

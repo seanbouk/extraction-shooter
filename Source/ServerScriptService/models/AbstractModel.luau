@@ -11,7 +11,7 @@ AbstractModel.__index = AbstractModel
 
 local registries: { [string]: { [string]: AbstractModel } } = {}
 
-type ModelScope = "User" | "Server" | "UserEntity"
+type ModelScope = "User" | "Server" | "UserEntity" | "ServerEntity"
 
 export type AbstractModel = typeof(setmetatable({} :: {
 	ownerId: string,
@@ -30,14 +30,19 @@ function AbstractModel.new(modelName: string, ownerId: string, scope: ModelScope
 	self._scope = scope
 	self._syncScope = syncScope
 
-	-- Validate UserEntity scope has modelId
-	if scope == "UserEntity" and not modelId then
-		error("UserEntity-scoped models require a modelId parameter")
+	-- Validate UserEntity and ServerEntity scopes have modelId
+	if (scope == "UserEntity" or scope == "ServerEntity") and not modelId then
+		error(scope .. "-scoped models require a modelId parameter")
 	end
 
 	-- Validate User/Server scopes don't have modelId
 	if (scope == "User" or scope == "Server") and modelId then
 		error("User and Server-scoped models cannot have a modelId parameter")
+	end
+
+	-- Validate ServerEntity scope uses "SERVER" as ownerId
+	if scope == "ServerEntity" and ownerId ~= "SERVER" then
+		error("ServerEntity-scoped models must use 'SERVER' as ownerId")
 	end
 
 	-- Register Bolt RemoteProperty for state synchronization
@@ -102,6 +107,31 @@ function AbstractModel.getAllInstances(modelName: string): { [string]: AbstractM
 	return registries[modelName] or {}
 end
 
+-- Remove a specific ServerEntity instance (for cleanup)
+function AbstractModel.removeServerEntity(modelName: string, entityId: string): ()
+	AbstractModel.removeInstance(modelName, "SERVER", entityId)
+end
+
+-- Get all ServerEntity instances for a model
+function AbstractModel.getAllServerEntities(modelName: string): { [string]: AbstractModel }
+	local registry = registries[modelName]
+	if not registry then
+		return {}
+	end
+
+	local serverPrefix = "SERVER_"
+	local entities: { [string]: AbstractModel } = {}
+
+	for registryKey, instance in registry do
+		if registryKey:sub(1, #serverPrefix) == serverPrefix then
+			local entityId = registryKey:sub(#serverPrefix + 1)
+			entities[entityId] = instance
+		end
+	end
+
+	return entities
+end
+
 function AbstractModel:_extractState()
 	local state = {}
 	for key, value in pairs(self) do
@@ -153,8 +183,30 @@ local function syncAllEntitiesForOwner(modelName: string, ownerId: string, state
 	end
 end
 
+-- Aggregate and sync all ServerEntity states to all players
+local function syncAllServerEntities(modelName: string, stateProperty: any): ()
+	local registry = registries[modelName]
+	if not registry then
+		return
+	end
+
+	local serverPrefix = "SERVER_"
+	local aggregatedStates: { [string]: any } = {}
+
+	-- Collect all server entity states
+	for registryKey, instance in registry do
+		if registryKey:sub(1, #serverPrefix) == serverPrefix then
+			local entityId = registryKey:sub(#serverPrefix + 1)
+			aggregatedStates[entityId] = (instance :: any):_extractState()
+		end
+	end
+
+	-- Broadcast the aggregated dictionary to all players
+	stateProperty:Set(aggregatedStates)
+end
+
 function AbstractModel:syncState(skipPersistence: boolean?): ()
-	-- Queue persistence for User and UserEntity scoped models
+	-- Queue persistence for User and UserEntity scoped models (not Server or ServerEntity)
 	if not skipPersistence and (self._scope == "User" or self._scope == "UserEntity") then
 		PersistenceService:queueWrite(self._modelName, self.ownerId, self, self.modelId)
 	end
@@ -165,6 +217,9 @@ function AbstractModel:syncState(skipPersistence: boolean?): ()
 	if self._scope == "UserEntity" then
 		-- UserEntity: Aggregate all entities for owner and sync as dictionary
 		syncAllEntitiesForOwner(self._modelName, self.ownerId, self._stateProperty)
+	elseif self._scope == "ServerEntity" then
+		-- ServerEntity: Aggregate all server entities and broadcast to all players (no persistence)
+		syncAllServerEntities(self._modelName, self._stateProperty)
 	elseif syncScope == "owner" then
 		-- User scoped models: Send only to owner
 		local state = self:_extractState()

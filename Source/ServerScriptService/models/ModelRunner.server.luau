@@ -14,9 +14,10 @@ local models = {}
 type ModelClass = {
 	get: (ownerId: string) -> any,
 	remove: (ownerId: string) -> (),
+	initAllServerEntities: (() -> ())?,
 }
 
-type ModelScope = "User" | "Server" | "UserEntity"
+type ModelScope = "User" | "Server" | "UserEntity" | "ServerEntity"
 
 type ModelInfo = {
 	class: ModelClass,
@@ -60,6 +61,12 @@ if userEntitiesFolder then
 	discoverModelsInFolder(userEntitiesFolder, "UserEntity")
 end
 
+-- Discover ServerEntity-scoped models
+local serverEntitiesFolder = modelsFolder:FindFirstChild("serverEntities")
+if serverEntitiesFolder then
+	discoverModelsInFolder(serverEntitiesFolder, "ServerEntity")
+end
+
 -- Register models with SlashCommandService and initialize it
 local SlashCommandService = require(script.Parent.Parent.services.SlashCommandService)
 SlashCommandService:init()
@@ -73,6 +80,20 @@ for _, modelInfo in modelInfos do
 		-- Initialize with ownerId "SERVER" (no persistence)
 		local instance = modelInfo.class.get("SERVER")
 		print("ModelRunner: Initialized Server-scoped model - " .. modelInfo.name)
+	end
+end
+
+-- Initialize ServerEntity-scoped models (ephemeral, multiple instances, shared by all players)
+print("ModelRunner: Initializing ServerEntity-scoped models")
+for _, modelInfo in modelInfos do
+	if modelInfo.scope == "ServerEntity" then
+		-- ServerEntity models need to implement initAllServerEntities() to define their entity IDs
+		if modelInfo.class.initAllServerEntities then
+			modelInfo.class.initAllServerEntities()
+			print("ModelRunner: Initialized ServerEntity-scoped model - " .. modelInfo.name)
+		else
+			warn("ServerEntity model " .. modelInfo.name .. " missing initAllServerEntities method")
+		end
 	end
 end
 

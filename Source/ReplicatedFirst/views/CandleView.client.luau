@@ -71,10 +71,27 @@ end
 -- ServerEntity state is an aggregated dictionary: { [entityId]: CandlesState }
 type CandlesStateDictionary = { [string]: Network.CandlesState }
 
+local function removeCandle(entityId: string)
+	local candle = spawnedCandles[entityId]
+	if candle then
+		candle:Destroy()
+		spawnedCandles[entityId] = nil
+		print("CandleView: Removed candle", entityId)
+	end
+end
+
 -- Observe candle state changes
 candlesState:Observe(function(allCandles: CandlesStateDictionary)
+	-- Spawn new candles
 	for entityId, candleData in allCandles do
 		spawnCandle(entityId, candleData)
+	end
+
+	-- Remove candles that no longer exist in state
+	for entityId, _ in spawnedCandles do
+		if not allCandles[entityId] then
+			removeCandle(entityId)
+		end
 	end
 end)
 

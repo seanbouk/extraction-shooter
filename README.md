@@ -100,6 +100,18 @@ Controllers handle business logic and orchestrate Model updates:
 
 **[📖 See the Controller Development Guide](CONTROLLER_GUIDE.md)** for step-by-step instructions on creating controllers. The guide includes a complete example using `CashMachineController`.
 
+### Services (src/server/)
+
+Services are server-side modules that run automatically to handle background tasks:
+
+- Run without user input (loops, system events)
+- Handle periodic cleanup, scheduled updates, system operations
+- Two patterns: Loop-based (periodic tasks) and Event-driven (respond to events)
+- Initialized from ModelRunner after models are ready
+- Examples: PersistenceService (DataStore queue), CandleService (candle expiry), SlashCommandService (chat commands)
+
+**[📖 See the Services Guide](SERVICES_GUIDE.md)** for step-by-step instructions on creating services. The guide includes patterns, decision trees, and complete examples.
+
 ### Views (src/client/)
 
 Views are LocalScripts that observe state and update visual elements:
@@ -378,6 +390,19 @@ These checklists provide step-by-step guidance for adding new components to your
 9. ✓ **Test in Studio** by requiring in command bar
 
 **See [CONFIG_GUIDE.md](CONFIG_GUIDE.md) for detailed examples.**
+
+### Adding a New Service
+
+1. ✓ **Choose pattern**: Loop-based (periodic tasks) or Event-driven (respond to events). See [SERVICES_GUIDE.md](SERVICES_GUIDE.md) for decision tree.
+2. ✓ **Create service file** in `Source/ServerScriptService/services/`
+3. ✓ **Implement init() function** that starts the service
+4. ✓ **For loop-based**: Use `task.spawn()` with `while true do` loop and `isRunning` flag
+5. ✓ **For event-driven**: Connect to events (PlayerAdded, etc.) in init()
+6. ✓ **Add to ModelRunner** - Require and call init() after model initialization
+7. ✓ **Add print statements** with `[ServiceName]` prefix for debugging
+8. ✓ **Test in Play mode** - Check Output window for initialization message
+
+**See [SERVICES_GUIDE.md](SERVICES_GUIDE.md) for detailed examples.**
 
 ### Updating Network.Actions
 

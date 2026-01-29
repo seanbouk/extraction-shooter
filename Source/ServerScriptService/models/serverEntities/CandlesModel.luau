@@ -54,6 +54,19 @@ function CandlesModel.getAll(): { [string]: CandlesModel }
 	return AbstractModel.getAllServerEntities("CandlesModel") :: any
 end
 
+-- Sync all candles to clients (handles empty state case)
+function CandlesModel.syncAll(): ()
+	local all = CandlesModel.getAll()
+	local anyCandle = next(all)
+	if anyCandle then
+		all[anyCandle]:syncState()
+	else
+		-- No candles remain - broadcast empty state
+		local Network = require(game:GetService("ReplicatedStorage").Network)
+		Network.State.Candles:Set({})
+	end
+end
+
 -- Required: Initialize server entities on startup
 -- For dynamically-created candles, this starts empty
 function CandlesModel.initAllServerEntities(): ()

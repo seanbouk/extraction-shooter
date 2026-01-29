@@ -97,6 +97,10 @@ for _, modelInfo in modelInfos do
 	end
 end
 
+-- Initialize game services that depend on models
+local CandleService = require(script.Parent.Parent.services.CandleService)
+CandleService.init()
+
 -- Handle player initialization
 Players.PlayerAdded:Connect(function(player: Player)
 	local ownerId = tostring(player.UserId)

@@ -15,9 +15,27 @@ Services are "controllers that run automatically" - they don't wait for user inp
 |--------|----------|-------------|
 | **Trigger** | Automatic (loops, events) | User intent (Bolt ReliableEvent) |
 | **Purpose** | Background tasks, system operations | Handle user actions |
-| **Initialization** | Called from ModelRunner after models | Auto-discovered by ControllerRunner |
+| **Initialization** | Auto-discovered by ServiceRunner (game/) or explicit (framework/) | Auto-discovered by ControllerRunner |
 | **Player-specific** | Usually system-wide | Usually per-player |
 | **Examples** | PersistenceService, CandleService | InventoryController, ShrineController |
+
+## Service Categories
+
+Services are organized into two folders based on initialization requirements:
+
+### Framework Services (`services/framework/`)
+Services that require explicit ordering or are dependencies for other systems:
+- **PersistenceService** - Must initialize before any model is used
+- **SlashCommandService** - Must initialize after models are discovered
+
+Framework services are initialized explicitly by ServiceRunner in a specific order.
+
+### Game Services (`services/game/`)
+Services that just need to run after models are ready:
+- **CandleService** - Removes expired candles
+- *Your new services go here!*
+
+Game services are **auto-discovered** - just drop a `.luau` file with an `init()` function and it runs automatically.
 
 ## Service Patterns
 
@@ -129,11 +147,14 @@ CandleService removes candles that have exceeded their lifetime:
 ```lua
 --!strict
 
-local CandlesModel = require(script.Parent.Parent.models.serverEntities.CandlesModel)
+local ServerScriptService = game:GetService("ServerScriptService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local CandlesModel = require(ServerScriptService.models.serverEntities.CandlesModel)
+local CandlesConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("CandlesConfig"))
 
 local CandleService = {}
 
-local CANDLE_LIFETIME_SECONDS = 5
 local CHECK_INTERVAL_SECONDS = 1
 
 local isRunning = false
@@ -144,7 +165,7 @@ local function removeExpiredCandles(): ()
     local candlesToRemove: { string } = {}
 
     for entityId, candle in allCandles do
-        if currentTime - candle.createdTime >= CANDLE_LIFETIME_SECONDS then
+        if currentTime - candle.createdTime >= CandlesConfig.lifetimeSeconds then
             table.insert(candlesToRemove, entityId)
         end
     end
@@ -180,7 +201,7 @@ return CandleService
 
 **Key design decisions:**
 - **1-second interval**: Frequent enough for responsive removal, not so frequent as to waste cycles
-- **5-second lifetime**: Candles disappear after 5 seconds (adjust as needed)
+- **Config-driven lifetime**: Uses `CandlesConfig.lifetimeSeconds` - tunable without code changes
 - **Batch removal**: Collects all expired candles first, removes them, then syncs once
 - **syncAll()**: Uses CandlesModel.syncAll() to handle both populated and empty states
 
@@ -195,7 +216,7 @@ Ask yourself:
 
 ### Step 2: Create the Service File
 
-Create your service in `Source/ServerScriptService/services/`:
+Create your service in `Source/ServerScriptService/services/game/`:
 
 ```lua
 --!strict
@@ -210,17 +231,9 @@ end
 return MyService
 ```
 
-### Step 3: Add to ModelRunner
+**That's it!** ServiceRunner auto-discovers and initializes any ModuleScript in `services/game/` that has an `init()` function.
 
-Add initialization in `ModelRunner.server.luau` after model initialization:
-
-```lua
--- Initialize game services that depend on models
-local MyService = require(script.Parent.Parent.services.MyService)
-MyService.init()
-```
-
-### Step 4: Test
+### Step 3: Test
 
 1. Start Play mode in Studio
 2. Check Output window for `[MyService] Initializing...`
@@ -246,19 +259,51 @@ MyService.init()
 ```
 Source/ServerScriptService/
 ├── services/
-│   ├── PersistenceService.luau    -- DataStore write queue (loop-based)
-│   ├── SlashCommandService.luau   -- Chat commands (event-driven)
-│   └── CandleService.luau         -- Candle expiry (loop-based)
+│   ├── ServiceRunner.luau         -- Orchestrates service initialization
+│   ├── framework/                 -- Explicit initialization order
+│   │   ├── PersistenceService.luau    -- DataStore write queue (loop-based)
+│   │   └── SlashCommandService.luau   -- Chat commands (event-driven)
+│   └── game/                      -- Auto-discovered services
+│       └── CandleService.luau         -- Candle expiry (loop-based)
 ├── models/
-│   └── ModelRunner.server.luau    -- Initializes services after models
+│   └── ModelRunner.server.luau    -- Calls ServiceRunner for service init
 └── controllers/
     └── ...
 ```
 
+### Adding a New Game Service
+
+Simply create a new `.luau` file in `services/game/` with an `init()` function:
+
+```lua
+-- services/game/MyNewService.luau
+local MyNewService = {}
+
+function MyNewService.init()
+    print("[MyNewService] Initializing...")
+end
+
+return MyNewService
+```
+
+ServiceRunner will automatically discover and initialize it. You'll see in the Output:
+```
+[ServiceRunner] Initialized: MyNewService
+```
+
 ## Existing Services Reference
 
-| Service | Pattern | Purpose |
-|---------|---------|---------|
-| PersistenceService | Loop-based | Processes DataStore write queue with rate limiting |
-| SlashCommandService | Event-driven | Registers and handles chat slash commands |
-| CandleService | Loop-based | Removes expired candles every second |
+| Service | Location | Pattern | Purpose |
+|---------|----------|---------|---------|
+| PersistenceService | framework/ | Loop-based | Processes DataStore write queue with rate limiting |
+| SlashCommandService | framework/ | Event-driven | Registers and handles chat slash commands |
+| CandleService | game/ | Loop-based | Removes expired candles every second |
+
+### When to Use Framework vs Game
+
+| Put in `framework/` if... | Put in `game/` if... |
+|---------------------------|----------------------|
+| Other services depend on it | It just needs models to be ready |
+| Initialization order matters | Order doesn't matter |
+| It's a core system service | It's game-specific logic |
+| Example: PersistenceService | Example: CandleService |

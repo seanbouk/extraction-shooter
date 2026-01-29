@@ -52,6 +52,61 @@ This template implements a strict Model-View-Controller pattern with automatic s
                                 (Client)         via Observe() callback
 ```
 
+### Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                              SERVER                                          │
+│                                                                              │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────────┐ │
+│  │     Models      │    │   Controllers   │    │        Services         │ │
+│  │   (state)       │◄───│   (intents)     │    │                         │ │
+│  │                 │    │                 │    │  ┌───────────────────┐  │ │
+│  │  user/          │    │ Listens to      │    │  │    framework/     │  │ │
+│  │  server/        │    │ Network.Intent  │    │  │  (explicit order) │  │ │
+│  │  userEntities/  │    │ validates &     │    │  │  - Persistence    │  │ │
+│  │  serverEntities/│    │ updates models  │    │  │  - SlashCommand   │  │ │
+│  │                 │    │                 │    │  ├───────────────────┤  │ │
+│  │  ↓ syncState()  │    └─────────────────┘    │  │    game/          │  │ │
+│  │  ↓              │                           │  │  (auto-discover)  │  │ │
+│  │  ↓ DataStore ───┼──────────────────────────►│  │  - CandleService  │  │ │
+│  │                 │                           │  │  - YourService    │  │ │
+│  └────────┬────────┘                           │  └───────────────────┘  │ │
+│           │                                    └─────────────────────────┘ │
+│           │ Network.State.*                                                 │
+│           ▼                                                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                              CLIENT                                          │
+│                                                                              │
+│  ┌─────────────────────────────────────────────────────────────────────┐   │
+│  │                            Views                                     │   │
+│  │                                                                      │   │
+│  │   Observe(Network.State.*)  ──►  Update UI/Visuals                  │   │
+│  │   User interaction          ──►  Fire Network.Intent.*              │   │
+│  │                                                                      │   │
+│  └─────────────────────────────────────────────────────────────────────┘   │
+│                                                                              │
+├─────────────────────────────────────────────────────────────────────────────┤
+│                           SHARED (ReplicatedStorage)                         │
+│                                                                              │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────────────┐ │
+│  │     Network     │    │     Configs     │    │        Bolt             │ │
+│  │                 │    │                 │    │   (networking lib)      │ │
+│  │  Intent.*       │    │  Static data    │    │                         │ │
+│  │  State.*        │    │  Prices, rates  │    │  ReliableEvent          │ │
+│  │  Actions.*      │    │  Thresholds     │    │  RemoteProperty         │ │
+│  │                 │    │                 │    │                         │ │
+│  └─────────────────┘    └─────────────────┘    └─────────────────────────┘ │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+**Key relationships:**
+- **Controllers → Models**: Controllers validate intents and update model state
+- **Models → Views**: Models sync state via `Network.State.*`, Views observe changes
+- **Views → Controllers**: Views fire intents via `Network.Intent.*`
+- **Services**: Run independently - framework services have explicit order, game services are auto-discovered
+- **Configs**: Static data accessible from both server and client
+
 ### Data Flow Steps
 
 **On Player Join:**
@@ -107,7 +162,9 @@ Services are server-side modules that run automatically to handle background tas
 - Run without user input (loops, system events)
 - Handle periodic cleanup, scheduled updates, system operations
 - Two patterns: Loop-based (periodic tasks) and Event-driven (respond to events)
-- Initialized from ModelRunner after models are ready
+- Organized into two categories:
+  - **Framework services** (`services/framework/`): Explicit initialization order (PersistenceService, SlashCommandService)
+  - **Game services** (`services/game/`): Auto-discovered by ServiceRunner - just add an `init()` function
 - Examples: PersistenceService (DataStore queue), CandleService (candle expiry), SlashCommandService (chat commands)
 
 **[📖 See the Services Guide](SERVICES_GUIDE.md)** for step-by-step instructions on creating services. The guide includes patterns, decision trees, and complete examples.
@@ -394,13 +451,13 @@ These checklists provide step-by-step guidance for adding new components to your
 ### Adding a New Service
 
 1. ✓ **Choose pattern**: Loop-based (periodic tasks) or Event-driven (respond to events). See [SERVICES_GUIDE.md](SERVICES_GUIDE.md) for decision tree.
-2. ✓ **Create service file** in `Source/ServerScriptService/services/`
-3. ✓ **Implement init() function** that starts the service
-4. ✓ **For loop-based**: Use `task.spawn()` with `while true do` loop and `isRunning` flag
-5. ✓ **For event-driven**: Connect to events (PlayerAdded, etc.) in init()
-6. ✓ **Add to ModelRunner** - Require and call init() after model initialization
+2. ✓ **Choose location**: `services/game/` for most services (auto-discovered), `services/framework/` only if initialization order matters
+3. ✓ **Create service file** in `Source/ServerScriptService/services/game/YourService.luau`
+4. ✓ **Implement init() function** that starts the service (required for auto-discovery)
+5. ✓ **For loop-based**: Use `task.spawn()` with `while true do` loop and `isRunning` flag
+6. ✓ **For event-driven**: Connect to events (PlayerAdded, etc.) in init()
 7. ✓ **Add print statements** with `[ServiceName]` prefix for debugging
-8. ✓ **Test in Play mode** - Check Output window for initialization message
+8. ✓ **Test in Play mode** - Check Output window for `[ServiceRunner] Initialized: YourService`
 
 **See [SERVICES_GUIDE.md](SERVICES_GUIDE.md) for detailed examples.**
 
@@ -791,17 +848,22 @@ view:initialize(setupShopUI)
 ### Directory Structure Recommendation
 
 ```
-src/
-├── server/
-│   ├── models/          # Game state (ModuleScripts)
-│   ├── controllers/     # Business logic (Scripts)
-│   └── services/        # Shared server utilities (e.g., PersistenceService)
-├── client/
-│   ├── views/           # UI and visual logic (LocalScripts)
-│   └── utilities/       # Client-side helpers
-└── shared/
-    ├── events/          # RemoteEvents/RemoteFunctions
-    └── constants/       # Shared configuration
+Source/
+├── ServerScriptService/
+│   ├── models/              # Game state (ModuleScripts)
+│   │   ├── user/            # Per-player, persistent
+│   │   ├── server/          # Global, ephemeral
+│   │   ├── userEntities/    # Multiple per player
+│   │   └── serverEntities/  # Multiple per server
+│   ├── controllers/         # Business logic (Scripts)
+│   └── services/            # Background tasks
+│       ├── framework/       # Explicit order (Persistence, SlashCommand)
+│       └── game/            # Auto-discovered (drop in & run)
+├── ReplicatedFirst/
+│   └── views/               # UI and visual logic (LocalScripts)
+└── ReplicatedStorage/
+    ├── Network.luau         # Intent/State/Actions definitions
+    └── Config/              # Static game data (prices, rates, etc.)
 ```
 
 ## Testing and Development Workflow

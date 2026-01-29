@@ -45,6 +45,15 @@ local NetworkConfig = {
 	},
 
 	States = {
+		Candles = {
+			ownerId = "",
+			modelId = "",
+			creator = "",
+			positionX = 0,
+			positionY = 0,
+			positionZ = 0,
+			createdTime = 0,
+		},
 		Favours = {
 			ownerId = "",
 			modelId = "",
@@ -84,6 +93,16 @@ export type CashMachineAction = "Withdraw" | "Deposit"
 export type ShrineAction = "Donate"
 
 -- State Type Exports (manually defined for type safety)
+export type CandlesState = {
+	ownerId: string,
+	modelId: string,
+	creator: string,
+	positionX: number,
+	positionY: number,
+	positionZ: number,
+	createdTime: number,
+}
+
 export type FavoursState = {
 	ownerId: string,
 	modelId: string,

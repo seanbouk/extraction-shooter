@@ -15,6 +15,7 @@ local UserInputService = game:GetService("UserInputService")
 
 local AbstractView = require(ReplicatedFirst:WaitForChild("AbstractView"))
 local Network = require(ReplicatedStorage:WaitForChild("Network"))
+local WeaponsConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("WeaponsConfig"))
 
 local localPlayer = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -72,25 +73,10 @@ local function getTargetPosition(screenPosition: Vector2): Vector3?
 	return farTarget
 end
 
-UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
-	if gameProcessed then
-		return
-	end
+local isHolding = false
 
+local function fireWeapon(screenPos: Vector2)
 	if not selectedWeapon then
-		return
-	end
-
-	-- Use input.Position for both mouse and touch (both are screen-space coordinates)
-	local screenPos: Vector2? = nil
-
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		screenPos = Vector2.new(input.Position.X, input.Position.Y)
-	elseif input.UserInputType == Enum.UserInputType.Touch then
-		screenPos = Vector2.new(input.Position.X, input.Position.Y)
-	end
-
-	if not screenPos then
 		return
 	end
 
@@ -100,4 +86,48 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: 
 	end
 
 	Network.Intent.Weapons:FireServer(Network.Actions.Weapons.Fire, selectedWeapon, targetPosition)
+end
+
+local function isFiringInput(input: InputObject): boolean
+	return input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch
+end
+
+UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
+	if gameProcessed then
+		return
+	end
+
+	if not selectedWeapon then
+		return
+	end
+
+	if not isFiringInput(input) then
+		return
+	end
+
+	local screenPos = Vector2.new(input.Position.X, input.Position.Y)
+	fireWeapon(screenPos)
+
+	local weaponStats = WeaponsConfig.weapons[selectedWeapon]
+	if weaponStats and weaponStats.auto > 0 then
+		isHolding = true
+		local heldWeapon = selectedWeapon
+		task.spawn(function()
+			while isHolding and selectedWeapon == heldWeapon do
+				task.wait(weaponStats.auto)
+				if not isHolding or selectedWeapon ~= heldWeapon then
+					break
+				end
+				local currentPos = UserInputService:GetMouseLocation()
+				fireWeapon(currentPos)
+			end
+		end)
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input: InputObject, _gameProcessed: boolean)
+	if isFiringInput(input) then
+		isHolding = false
+	end
 end)

@@ -4,7 +4,7 @@
 	WeaponSelectorView
 
 	Handles client-side weapon selection UI. Supports clicking buttons
-	and scrolling the mouse wheel to carousel through weapons.
+	and pressing number keys (1-6) to select weapons.
 	Fires a BindableEvent so other views/controllers can react to selection changes.
 
 	Expected hierarchy:
@@ -94,21 +94,23 @@ local function setupWeaponSelector(screenGui: Instance)
 		end)
 	end
 
-	-- Mouse wheel carousel
+	-- Number keys to select weapon
+	local keyToIndex: { [Enum.KeyCode]: number } = {
+		[Enum.KeyCode.One] = 1,
+		[Enum.KeyCode.Two] = 2,
+		[Enum.KeyCode.Three] = 3,
+		[Enum.KeyCode.Four] = 4,
+		[Enum.KeyCode.Five] = 5,
+		[Enum.KeyCode.Six] = 6,
+	}
+
 	UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
 		if gameProcessed then
 			return
 		end
 
-		if input.UserInputType == Enum.UserInputType.MouseWheel then
-			local direction = math.sign(input.Position.Z)
-			local newIndex = selectedIndex - direction
-			-- Wrap around
-			if newIndex < 1 then
-				newIndex = #weapons
-			elseif newIndex > #weapons then
-				newIndex = 1
-			end
+		local newIndex = keyToIndex[input.KeyCode]
+		if newIndex and newIndex <= #weapons then
 			selectedIndex = newIndex
 			applySelection()
 		end

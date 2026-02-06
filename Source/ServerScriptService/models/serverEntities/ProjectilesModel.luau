@@ -23,7 +23,7 @@ export type ProjectilesModel = typeof(setmetatable({} :: {
 	createdTime: number,
 }, ProjectilesModel)) & AbstractModel.AbstractModel
 
-local _onCreatedCallbacks: { (entityId: string, data: ProjectilesModel) -> () } = {}
+local _onCreatedCallbacks: { (entityId: string, data: ProjectilesModel, firingPlayer: Player?) -> () } = {}
 
 function ProjectilesModel.new(entityId: string): ProjectilesModel
 	local self = AbstractModel.new("ProjectilesModel", "SERVER", "ServerEntity", entityId) :: any
@@ -64,7 +64,8 @@ function ProjectilesModel.create(
 	directionX: number, directionY: number, directionZ: number,
 	speed: number,
 	diameter: number, length: number,
-	colourR: number, colourG: number, colourB: number
+	colourR: number, colourG: number, colourB: number,
+	firingPlayer: Player?
 ): ProjectilesModel
 	local projectile = ProjectilesModel.get(entityId)
 	projectile.weaponName = weaponName
@@ -85,14 +86,14 @@ function ProjectilesModel.create(
 
 	-- Invoke onCreated callbacks
 	for _, callback in _onCreatedCallbacks do
-		task.spawn(callback, entityId, projectile)
+		task.spawn(callback, entityId, projectile, firingPlayer)
 	end
 
 	return projectile
 end
 
 -- Register a callback to be invoked when a new projectile is created
-function ProjectilesModel.onCreated(callback: (entityId: string, data: ProjectilesModel) -> ()): ()
+function ProjectilesModel.onCreated(callback: (entityId: string, data: ProjectilesModel, firingPlayer: Player?) -> ()): ()
 	table.insert(_onCreatedCallbacks, callback)
 end
 

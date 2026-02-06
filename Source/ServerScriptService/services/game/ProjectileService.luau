@@ -2,6 +2,7 @@
 
 local CollectionService = game:GetService("CollectionService")
 local Debris = game:GetService("Debris")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
@@ -15,8 +16,9 @@ local DEBRIS_FALLBACK_SECONDS = 15
 
 local isRunning = false
 
--- Track spawned parts for cleanup coordination
+-- Track spawned parts and their creators for cleanup and collision filtering
 local spawnedParts: { [string]: BasePart } = {}
+local creatorPlayerIds: { [string]: number } = {}
 
 local shotTemplate: BasePart? = nil
 
@@ -30,7 +32,7 @@ local function findShotTemplate(): BasePart?
 	return nil
 end
 
-local function spawnProjectilePart(entityId: string, data: any): ()
+local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Player?): ()
 	if not shotTemplate then
 		warn("[ProjectileService] No shot template found")
 		return
@@ -59,6 +61,12 @@ local function spawnProjectilePart(entityId: string, data: any): ()
 
 	part.Parent = workspace
 
+	-- Give the firing player network ownership for smooth client-side physics
+	if firingPlayer then
+		part:SetNetworkOwner(firingPlayer)
+		creatorPlayerIds[entityId] = firingPlayer.UserId
+	end
+
 	-- Belt-and-braces backup cleanup via Debris
 	Debris:AddItem(part, DEBRIS_FALLBACK_SECONDS)
 
@@ -67,14 +75,24 @@ local function spawnProjectilePart(entityId: string, data: any): ()
 
 	-- Touched connection for collision
 	part.Touched:Connect(function(otherPart: BasePart)
-		-- Ignore other projectiles (shot-tagged parts)
+		-- Ignore other projectiles (Shot-tagged parts)
 		if CollectionService:HasTag(otherPart, "Shot") then
 			return
+		end
+
+		-- Ignore the firing player's own character
+		local creatorId = creatorPlayerIds[entityId]
+		if creatorId then
+			local creator = Players:GetPlayerByUserId(creatorId)
+			if creator and creator.Character and otherPart:IsDescendantOf(creator.Character) then
+				return
+			end
 		end
 
 		-- Destroy the part and remove the model entry
 		if spawnedParts[entityId] then
 			spawnedParts[entityId] = nil
+			creatorPlayerIds[entityId] = nil
 			part:Destroy()
 			ProjectilesModel.remove(entityId)
 			ProjectilesModel.syncAll()
@@ -100,6 +118,7 @@ local function removeExpiredProjectiles(): ()
 			part:Destroy()
 			spawnedParts[entityId] = nil
 		end
+		creatorPlayerIds[entityId] = nil
 		ProjectilesModel.remove(entityId)
 	end
 

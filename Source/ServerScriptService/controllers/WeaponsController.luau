@@ -78,7 +78,8 @@ local function fire(player: Player, weaponName: string, targetPosition: Vector3)
 			noisedDirection.X, noisedDirection.Y, noisedDirection.Z,
 			weaponStats.speed,
 			weaponStats.diameter, weaponStats.length,
-			colour.R, colour.G, colour.B
+			colour.R, colour.G, colour.B,
+			player
 		)
 	end
 

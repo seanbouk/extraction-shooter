@@ -48,9 +48,6 @@ local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Pl
 	-- Color
 	part.Color = Color3.new(data.colourR, data.colourG, data.colourB)
 
-	-- Orient cylinder axis (X) along direction vector
-	part.CFrame = CFrame.lookAt(origin, origin + direction) * CFrame.Angles(0, math.rad(-90), 0)
-
 	-- Inherit the firing player's velocity so slow projectiles don't fall behind
 	local playerVelocity = Vector3.zero
 	if firingPlayer and firingPlayer.Character then
@@ -61,6 +58,10 @@ local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Pl
 	end
 
 	local totalVelocity = direction * data.speed + playerVelocity
+
+	-- Orient cylinder axis (X) along the actual travel direction (includes player velocity)
+	local travelDirection = totalVelocity.Unit
+	part.CFrame = CFrame.lookAt(origin, origin + travelDirection) * CFrame.Angles(0, math.rad(-90), 0)
 
 	-- Use a LinearVelocity constraint instead of AssemblyLinearVelocity.
 	-- Constraints are Instances (children of the part) that replicate WITH the part,
@@ -75,6 +76,15 @@ local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Pl
 	velocityConstraint.VectorVelocity = totalVelocity
 	velocityConstraint.RelativeTo = Enum.ActuatorRelativeTo.World
 	velocityConstraint.Parent = part
+
+	-- Actively align orientation to the correct flight direction
+	local alignOrientation = Instance.new("AlignOrientation")
+	alignOrientation.Mode = Enum.OrientationAlignmentMode.OneAttachment
+	alignOrientation.Attachment0 = attachment
+	alignOrientation.CFrame = part.CFrame
+	alignOrientation.MaxTorque = math.huge
+	alignOrientation.Responsiveness = 200
+	alignOrientation.Parent = part
 
 	-- Physics setup
 	part.Anchored = false

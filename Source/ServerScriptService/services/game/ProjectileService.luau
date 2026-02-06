@@ -88,7 +88,7 @@ local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Pl
 
 	-- Physics setup
 	part.Anchored = false
-	part.CanCollide = true
+
 	part.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0, 0, 0, 0)
 
 	part.Parent = workspace

@@ -42,6 +42,7 @@ local NetworkConfig = {
 		CashMachine = { "Withdraw", "Deposit" },
 		Shrine = { "Donate" },
 		SlashCommand = {},  -- No actions, just the intent
+		Weapons = { "Fire" },
 	},
 
 	States = {
@@ -64,6 +65,17 @@ local NetworkConfig = {
 			gold = 0,
 			treasure = 0,
 			favourIds = {},
+		},
+		Projectiles = {
+			ownerId = "",
+			modelId = "",
+			weaponName = "",
+			originX = 0, originY = 0, originZ = 0,
+			directionX = 0, directionY = 0, directionZ = 0,
+			speed = 0,
+			diameter = 0, length = 0,
+			colourR = 0, colourG = 0, colourB = 0,
+			createdTime = 0,
 		},
 		Shrine = {
 			ownerId = "",
@@ -91,6 +103,7 @@ local Network = NetworkBuilder.build(NetworkConfig, Bolt)
 export type BazaarAction = "BuyTreasure"
 export type CashMachineAction = "Withdraw" | "Deposit"
 export type ShrineAction = "Donate"
+export type WeaponsAction = "Fire"
 
 -- State Type Exports (manually defined for type safety)
 export type CandlesState = {
@@ -114,6 +127,18 @@ export type InventoryState = {
 	gold: number,
 	treasure: number,
 	favourIds: {string},
+}
+
+export type ProjectilesState = {
+	ownerId: string,
+	modelId: string,
+	weaponName: string,
+	originX: number, originY: number, originZ: number,
+	directionX: number, directionY: number, directionZ: number,
+	speed: number,
+	diameter: number, length: number,
+	colourR: number, colourG: number, colourB: number,
+	createdTime: number,
 }
 
 export type ShrineState = {

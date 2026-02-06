@@ -33,36 +33,43 @@ end
 
 local RAYCAST_DISTANCE = 1000
 
-local function getTargetPosition(screenPosition: Vector2): Vector3
+local function getTargetPosition(screenPosition: Vector2): Vector3?
+	local character = localPlayer.Character
+	if not character then
+		return nil
+	end
+
+	local rootPart = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not rootPart then
+		return nil
+	end
+
+	-- input.Position is in screen space — ScreenPointToRay expects screen space
 	local ray = camera:ScreenPointToRay(screenPosition.X, screenPosition.Y)
 
 	local raycastParams = RaycastParams.new()
 	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
-
-	-- Exclude the local player's character
-	local character = localPlayer.Character
-	if character then
-		raycastParams.FilterDescendantsInstances = { character }
-	end
+	raycastParams.FilterDescendantsInstances = { character }
 
 	local result = workspace:Raycast(ray.Origin, ray.Direction * RAYCAST_DISTANCE, raycastParams)
+	local hitPosition = if result then result.Position else ray.Origin + ray.Direction * RAYCAST_DISTANCE
 
-	if result then
-		return result.Position
-	end
+	-- Project far from the player so server-side position drift can't flip the direction
+	local direction = (hitPosition - rootPart.Position).Unit
+	local farTarget = rootPart.Position + direction * RAYCAST_DISTANCE
 
-	-- Fallback: far point along ray
-	return ray.Origin + ray.Direction * RAYCAST_DISTANCE
-end
+	print(string.format(
+		"[VIEW] screen=(%.0f,%.0f) rayOrigin=(%.1f,%.1f,%.1f) rayDir=(%.2f,%.2f,%.2f) hit=%s hitPos=(%.1f,%.1f,%.1f) playerPos=(%.1f,%.1f,%.1f) dir=(%.2f,%.2f,%.2f)",
+		screenPosition.X, screenPosition.Y,
+		ray.Origin.X, ray.Origin.Y, ray.Origin.Z,
+		ray.Direction.X, ray.Direction.Y, ray.Direction.Z,
+		if result then result.Instance.Name else "NONE",
+		hitPosition.X, hitPosition.Y, hitPosition.Z,
+		rootPart.Position.X, rootPart.Position.Y, rootPart.Position.Z,
+		direction.X, direction.Y, direction.Z
+	))
 
-local function fireWeapon(screenPosition: Vector2)
-	if not selectedWeapon then
-		return
-	end
-
-	local targetPosition = getTargetPosition(screenPosition)
-
-	Network.Intent.Weapons:FireServer(Network.Actions.Weapons.Fire, selectedWeapon, targetPosition)
+	return farTarget
 end
 
 UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: boolean)
@@ -70,10 +77,27 @@ UserInputService.InputBegan:Connect(function(input: InputObject, gameProcessed: 
 		return
 	end
 
-	if input.UserInputType == Enum.UserInputType.MouseButton1 then
-		local mouseLocation = UserInputService:GetMouseLocation()
-		fireWeapon(mouseLocation)
-	elseif input.UserInputType == Enum.UserInputType.Touch then
-		fireWeapon(Vector2.new(input.Position.X, input.Position.Y))
+	if not selectedWeapon then
+		return
 	end
+
+	-- Use input.Position for both mouse and touch (both are screen-space coordinates)
+	local screenPos: Vector2? = nil
+
+	if input.UserInputType == Enum.UserInputType.MouseButton1 then
+		screenPos = Vector2.new(input.Position.X, input.Position.Y)
+	elseif input.UserInputType == Enum.UserInputType.Touch then
+		screenPos = Vector2.new(input.Position.X, input.Position.Y)
+	end
+
+	if not screenPos then
+		return
+	end
+
+	local targetPosition = getTargetPosition(screenPos)
+	if not targetPosition then
+		return
+	end
+
+	Network.Intent.Weapons:FireServer(Network.Actions.Weapons.Fire, selectedWeapon, targetPosition)
 end)

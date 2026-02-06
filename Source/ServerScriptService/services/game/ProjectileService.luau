@@ -2,7 +2,6 @@
 
 local CollectionService = game:GetService("CollectionService")
 local Debris = game:GetService("Debris")
-local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
@@ -16,9 +15,8 @@ local DEBRIS_FALLBACK_SECONDS = 15
 
 local isRunning = false
 
--- Track spawned parts and their creators for cleanup and collision filtering
+-- Track spawned parts for cleanup coordination
 local spawnedParts: { [string]: BasePart } = {}
-local creatorPlayerIds: { [string]: number } = {}
 
 local shotTemplate: BasePart? = nil
 
@@ -53,19 +51,51 @@ local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Pl
 	-- Orient cylinder axis (X) along direction vector
 	part.CFrame = CFrame.lookAt(origin, origin + direction) * CFrame.Angles(0, math.rad(-90), 0)
 
+	-- Inherit the firing player's velocity so slow projectiles don't fall behind
+	local playerVelocity = Vector3.zero
+	if firingPlayer and firingPlayer.Character then
+		local humanoid = firingPlayer.Character:FindFirstChild("Humanoid") :: Humanoid?
+		if humanoid then
+			playerVelocity = humanoid.MoveDirection * humanoid.WalkSpeed
+		end
+	end
+
+	local totalVelocity = direction * data.speed + playerVelocity
+
+	-- Use a LinearVelocity constraint instead of AssemblyLinearVelocity.
+	-- Constraints are Instances (children of the part) that replicate WITH the part,
+	-- so the client receives the velocity when it gets network ownership.
+	-- AssemblyLinearVelocity is physics state that gets lost during ownership transfer.
+	local attachment = Instance.new("Attachment")
+	attachment.Parent = part
+
+	local velocityConstraint = Instance.new("LinearVelocity")
+	velocityConstraint.Attachment0 = attachment
+	velocityConstraint.MaxForce = math.huge
+	velocityConstraint.VectorVelocity = totalVelocity
+	velocityConstraint.RelativeTo = Enum.ActuatorRelativeTo.World
+	velocityConstraint.Parent = part
+
 	-- Physics setup
 	part.Anchored = false
 	part.CanCollide = true
-	part.AssemblyLinearVelocity = direction * data.speed
 	part.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0, 0, 0, 0)
 
 	part.Parent = workspace
 
-	-- Give the firing player network ownership for smooth client-side physics
+	-- Immediate network ownership — the LinearVelocity constraint replicates
+	-- as a child of the part, so the client has the velocity from frame one
 	if firingPlayer then
 		part:SetNetworkOwner(firingPlayer)
-		creatorPlayerIds[entityId] = firingPlayer.UserId
 	end
+
+	print(string.format(
+		"[SVC] entityId=%s speed=%.1f playerVel=(%.1f,%.1f,%.1f) totalVel=(%.1f,%.1f,%.1f) dir=(%.2f,%.2f,%.2f)",
+		entityId, data.speed,
+		playerVelocity.X, playerVelocity.Y, playerVelocity.Z,
+		totalVelocity.X, totalVelocity.Y, totalVelocity.Z,
+		direction.X, direction.Y, direction.Z
+	))
 
 	-- Belt-and-braces backup cleanup via Debris
 	Debris:AddItem(part, DEBRIS_FALLBACK_SECONDS)
@@ -81,18 +111,13 @@ local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Pl
 		end
 
 		-- Ignore the firing player's own character
-		local creatorId = creatorPlayerIds[entityId]
-		if creatorId then
-			local creator = Players:GetPlayerByUserId(creatorId)
-			if creator and creator.Character and otherPart:IsDescendantOf(creator.Character) then
-				return
-			end
+		if firingPlayer and firingPlayer.Character and otherPart:IsDescendantOf(firingPlayer.Character) then
+			return
 		end
 
 		-- Destroy the part and remove the model entry
 		if spawnedParts[entityId] then
 			spawnedParts[entityId] = nil
-			creatorPlayerIds[entityId] = nil
 			part:Destroy()
 			ProjectilesModel.remove(entityId)
 			ProjectilesModel.syncAll()
@@ -118,7 +143,6 @@ local function removeExpiredProjectiles(): ()
 			part:Destroy()
 			spawnedParts[entityId] = nil
 		end
-		creatorPlayerIds[entityId] = nil
 		ProjectilesModel.remove(entityId)
 	end
 

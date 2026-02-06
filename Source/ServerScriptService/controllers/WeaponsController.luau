@@ -56,9 +56,19 @@ local function fire(player: Player, weaponName: string, targetPosition: Vector3)
 		return
 	end
 
-	-- Calculate origin slightly in front of the player
-	local origin = rootPart.Position + rootPart.CFrame.LookVector * 2
-	local baseDirection = (targetPosition - origin).Unit
+	-- Target is projected 1000 studs from the client's player position,
+	-- so small server-side position drift doesn't affect the direction
+	local baseDirection = (targetPosition - rootPart.Position).Unit
+	local origin = rootPart.Position + baseDirection * 2
+
+	print(string.format(
+		"[CTRL] %s fired %s | playerPos=(%.1f,%.1f,%.1f) target=(%.1f,%.1f,%.1f) dir=(%.2f,%.2f,%.2f) origin=(%.1f,%.1f,%.1f)",
+		player.Name, weaponName,
+		rootPart.Position.X, rootPart.Position.Y, rootPart.Position.Z,
+		targetPosition.X, targetPosition.Y, targetPosition.Z,
+		baseDirection.X, baseDirection.Y, baseDirection.Z,
+		origin.X, origin.Y, origin.Z
+	))
 
 	-- Create projectiles
 	for _ = 1, weaponStats.numberOfProjectiles do
@@ -82,8 +92,6 @@ local function fire(player: Player, weaponName: string, targetPosition: Vector3)
 			player
 		)
 	end
-
-	print(player.Name .. " fired " .. weaponName .. " (" .. weaponStats.numberOfProjectiles .. " projectiles)")
 end
 
 local ACTIONS = {

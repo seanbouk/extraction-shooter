@@ -130,6 +130,10 @@ local function checkCollection(): ()
 		if not character then
 			continue
 		end
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if not humanoid or humanoid.Health <= 0 then
+			continue
+		end
 		local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
 		if not root then
 			continue

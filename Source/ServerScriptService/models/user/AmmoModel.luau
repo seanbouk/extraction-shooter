@@ -111,4 +111,13 @@ function AmmoModel:spendAmmo(ammoType: AmmoType, amount: number): boolean
 	return true
 end
 
+function AmmoModel:clearAllAmmo(): ()
+	self.pistol = 0
+	self.shot = 0
+	self.laser = 0
+	self.auto = 0
+	self.canon = 0
+	self:_flushSync()
+end
+
 return AmmoModel

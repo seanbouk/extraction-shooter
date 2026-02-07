@@ -14,7 +14,7 @@ local RunService = game:GetService("RunService")
 
 local AbstractView = require(ReplicatedFirst:WaitForChild("AbstractView"))
 
-local SPIN_SPEED = math.rad(90) -- 90 deg/sec, full rotation every 4 seconds
+local SPIN_SPEED = math.rad(180) -- 180 deg/sec, full rotation every 2 seconds
 local COLLECTION_RADIUS = 8 -- studs
 
 local view = AbstractView.new("PickupView", "Pickup")
@@ -46,10 +46,12 @@ end)
 local function setupPickup(instance: Instance)
 	local entry: TrackedPickup
 
+	local randomYaw = CFrame.Angles(0, math.random() * math.pi * 2, 0)
+
 	if instance:IsA("BasePart") then
 		entry = {
 			instance = instance,
-			pivot = instance.CFrame,
+			pivot = instance.CFrame * randomYaw,
 			getPosition = function(inst: Instance)
 				return (inst :: BasePart).Position
 			end,
@@ -57,7 +59,7 @@ local function setupPickup(instance: Instance)
 	elseif instance:IsA("Model") then
 		entry = {
 			instance = instance,
-			pivot = instance:GetPivot(),
+			pivot = instance:GetPivot() * randomYaw,
 			getPosition = function(inst: Instance)
 				return (inst :: Model):GetPivot().Position
 			end,

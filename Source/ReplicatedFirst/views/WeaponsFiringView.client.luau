@@ -22,6 +22,7 @@ local localPlayer = Players.LocalPlayer
 local camera = workspace.CurrentCamera
 
 local blastSoundTemplate: Sound = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("BlastSound") :: Sound
+local shootTemplate: BasePart = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Shoot") :: BasePart
 
 local view = AbstractView.new("WeaponsFiringView", "WeaponsFiringView")
 
@@ -77,6 +78,40 @@ local function getTargetPosition(screenPosition: Vector2): Vector3?
 end
 
 local isHolding = false
+
+local function spawnMuzzleFlash(weaponName: string)
+	local character = localPlayer.Character
+	if not character then
+		return
+	end
+
+	local rootPart = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not rootPart then
+		return
+	end
+
+	local weaponStats = WeaponsConfig.weapons[weaponName]
+	if not weaponStats then
+		return
+	end
+
+	local shootPart = shootTemplate:Clone()
+	shootPart.CFrame = rootPart.CFrame
+	shootPart.Parent = workspace
+
+	local emitter = shootPart:FindFirstChildWhichIsA("ParticleEmitter") :: ParticleEmitter?
+	if not emitter then
+		shootPart:Destroy()
+		return
+	end
+
+	emitter.Color = ColorSequence.new(weaponStats.colour)
+	local count = emitter.Rate
+	emitter:Emit(count)
+	emitter.Rate = 0
+
+	Debris:AddItem(shootPart, emitter.Lifetime.Max + 0.2)
+end
 
 local function playFireSound(weaponName: string)
 	local character = localPlayer.Character
@@ -169,6 +204,7 @@ local function fireWeapon(screenPos: Vector2)
 	end
 
 	playFireSound(selectedWeapon)
+	spawnMuzzleFlash(selectedWeapon)
 	Network.Intent.Weapons:FireServer(Network.Actions.Weapons.Fire, selectedWeapon, targetPosition)
 end
 

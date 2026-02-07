@@ -18,6 +18,7 @@ local WeaponsConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForCh
 local localPlayer = Players.LocalPlayer
 
 local blastSoundTemplate: Sound = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("BlastSound") :: Sound
+local shootTemplate: BasePart = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Shoot") :: BasePart
 
 -- Track previously seen projectile IDs to detect new ones
 local knownProjectileIds: { [string]: boolean } = {}
@@ -40,6 +41,30 @@ local function getLocalPlayerPosition(): Vector3?
 		return nil
 	end
 	return rootPart.Position
+end
+
+local function spawnMuzzleFlash(weaponName: string, position: Vector3)
+	local weaponStats = WeaponsConfig.weapons[weaponName]
+	if not weaponStats then
+		return
+	end
+
+	local shootPart = shootTemplate:Clone()
+	shootPart.CFrame = CFrame.new(position)
+	shootPart.Parent = workspace
+
+	local emitter = shootPart:FindFirstChildWhichIsA("ParticleEmitter") :: ParticleEmitter?
+	if not emitter then
+		shootPart:Destroy()
+		return
+	end
+
+	emitter.Color = ColorSequence.new(weaponStats.colour)
+	local count = emitter.Rate
+	emitter:Emit(count)
+	emitter.Rate = 0
+
+	Debris:AddItem(shootPart, emitter.Lifetime.Max + 0.2)
 end
 
 local function playSoundAtPosition(weaponName: string, position: Vector3)
@@ -149,6 +174,7 @@ Network.State.Projectiles:Observe(function(data)
 		playedThisBatch[batchKey] = true
 
 		playSoundAtPosition(weaponName, origin)
+		spawnMuzzleFlash(weaponName, origin)
 	end
 
 	-- Clean up IDs for projectiles no longer in state

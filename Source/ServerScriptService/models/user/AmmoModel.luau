@@ -65,6 +65,7 @@ function AmmoModel:_flushSync(): ()
 end
 
 function AmmoModel:_debouncedSync(): ()
+	self:syncState(true) -- replicate to client immediately, skip datastore
 	if self._syncThread then
 		task.cancel(self._syncThread)
 	end

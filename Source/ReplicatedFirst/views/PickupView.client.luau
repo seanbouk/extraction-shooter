@@ -3,9 +3,11 @@
 --[[
 	PickupView
 
-	Client-side view that makes "Pickup"-tagged instances spin around the Y axis
-	and destroys them when the local player walks within collection range.
-	Supports both BasePart and Model instances.
+	Client-side view that makes "Pickup"-tagged instances spin around the Y axis,
+	scales them by Amount, and shows the weapon icon.
+	Plays a collection sound when a pickup is destroyed (collected server-side).
+
+	Collection is handled entirely server-side by PickupSpawnerService.
 ]]
 
 local Debris = game:GetService("Debris")
@@ -15,12 +17,11 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local AbstractView = require(ReplicatedFirst:WaitForChild("AbstractView"))
-local Network = require(ReplicatedStorage:WaitForChild("Network"))
 local WeaponsConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("WeaponsConfig"))
 
 local SPIN_SPEED = math.rad(180) -- 180 deg/sec, full rotation every 2 seconds
-local COLLECTION_RADIUS = 8 -- studs
 local BASE_PICKUP_AMOUNT = 5
+local SOUND_RANGE = 20
 
 local pickupSound: Sound = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("PickupSound") :: Sound
 
@@ -29,14 +30,13 @@ local view = AbstractView.new("PickupView", "Pickup")
 type TrackedPickup = {
 	instance: Instance,
 	pivot: CFrame,
-	getPosition: (Instance) -> Vector3,
 }
 
 local pickups: { TrackedPickup } = {}
-local rootPart: BasePart? = nil
 
--- Track the local player's HumanoidRootPart
+-- Track the local player's HumanoidRootPart for collection sound
 local player = Players.LocalPlayer
+local rootPart: BasePart? = nil
 
 local function onCharacterAdded(character: Model)
 	rootPart = character:WaitForChild("HumanoidRootPart", 10) :: BasePart?
@@ -73,17 +73,11 @@ local function setupPickup(instance: Instance)
 		entry = {
 			instance = instance,
 			pivot = instance.CFrame * randomYaw,
-			getPosition = function(inst: Instance)
-				return (inst :: BasePart).Position
-			end,
 		}
 	elseif instance:IsA("Model") then
 		entry = {
 			instance = instance,
 			pivot = instance:GetPivot() * randomYaw,
-			getPosition = function(inst: Instance)
-				return (inst :: Model):GetPivot().Position
-			end,
 		}
 	else
 		warn(`PickupView: {instance.Name} is not a BasePart or Model`)
@@ -129,6 +123,17 @@ RunService.Heartbeat:Connect(function(dt: number)
 
 		-- Remove destroyed instances via swap-remove
 		if pickup.instance.Parent == nil then
+			-- Play collection sound if local player is nearby
+			if currentRoot and currentRoot.Parent then
+				local lastPos = pickup.pivot.Position
+				if (currentRoot.Position - lastPos).Magnitude <= SOUND_RANGE then
+					local sound = pickupSound:Clone()
+					sound.Parent = currentRoot
+					sound:Play()
+					Debris:AddItem(sound, sound.TimeLength + 0.1)
+				end
+			end
+
 			pickups[i] = pickups[#pickups]
 			pickups[#pickups] = nil :: any
 			continue
@@ -140,43 +145,6 @@ RunService.Heartbeat:Connect(function(dt: number)
 			pickup.instance.CFrame = pickup.pivot
 		elseif pickup.instance:IsA("Model") then
 			pickup.instance:PivotTo(pickup.pivot)
-		end
-
-		-- Collection distance check
-		if currentRoot and currentRoot.Parent then
-			local pickupPos = pickup.getPosition(pickup.instance)
-			local distance = (currentRoot.Position - pickupPos).Magnitude
-			if distance <= COLLECTION_RADIUS then
-				-- Award ammo for this pickup's weapon
-				local weaponName = pickup.instance:GetAttribute("Weapon")
-				local amount = pickup.instance:GetAttribute("Amount")
-				if typeof(weaponName) == "string" and typeof(amount) == "number" then
-					local ammoType = string.lower(weaponName)
-					Network.Intent.Ammo:FireServer(Network.Actions.Ammo.Collect, ammoType, amount)
-				end
-
-				-- Enter collected state: hide the pickup visually
-				if pickup.instance:IsA("BasePart") then
-					pickup.instance.Transparency = 1
-				elseif pickup.instance:IsA("Model") then
-					for _, desc in pickup.instance:GetDescendants() do
-						if desc:IsA("BasePart") then
-							desc.Transparency = 1
-						end
-					end
-				end
-
-				-- Play sound parented to the pickup, then let Debris clean up both
-				local sound = pickupSound:Clone()
-				sound.Parent = pickup.instance
-				sound:Play()
-				Debris:AddItem(pickup.instance, sound.TimeLength)
-
-				-- Remove from tracking
-				pickups[i] = pickups[#pickups]
-				pickups[#pickups] = nil :: any
-				continue
-			end
 		end
 
 		i += 1

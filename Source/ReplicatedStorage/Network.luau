@@ -43,6 +43,14 @@ local NetworkConfig = {
 	},
 
 	States = {
+		Ammo = {
+			ownerId = "",
+			pistol = 100,
+			shot = 1,
+			laser = 1,
+			auto = 20,
+			canon = 1,
+		},
 		Projectiles = {
 			ownerId = "",
 			modelId = "",
@@ -75,6 +83,15 @@ local Network = NetworkBuilder.build(NetworkConfig, Bolt)
 export type WeaponsAction = "Fire"
 
 -- State Type Exports (manually defined for type safety)
+export type AmmoState = {
+	ownerId: string,
+	pistol: number,
+	shot: number,
+	laser: number,
+	auto: number,
+	canon: number,
+}
+
 export type ProjectilesState = {
 	ownerId: string,
 	modelId: string,

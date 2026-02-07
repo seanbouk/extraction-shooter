@@ -15,6 +15,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local AbstractView = require(ReplicatedFirst:WaitForChild("AbstractView"))
+local WeaponsConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("WeaponsConfig"))
 
 local SPIN_SPEED = math.rad(180) -- 180 deg/sec, full rotation every 2 seconds
 local COLLECTION_RADIUS = 8 -- studs
@@ -47,6 +48,20 @@ player.CharacterRemoving:Connect(function()
 	rootPart = nil
 end)
 
+local function updatePickupIcon(instance: Instance, weaponName: string)
+	local stats = WeaponsConfig.weapons[weaponName]
+	local icon = if stats then stats.icon else ""
+	for _, desc in instance:GetDescendants() do
+		if desc:IsA("SurfaceGui") then
+			for _, child in desc:GetChildren() do
+				if child:IsA("TextLabel") then
+					child.Text = icon
+				end
+			end
+		end
+	end
+end
+
 local function setupPickup(instance: Instance)
 	local entry: TrackedPickup
 
@@ -74,6 +89,17 @@ local function setupPickup(instance: Instance)
 	end
 
 	table.insert(pickups, entry)
+
+	local weaponName = instance:GetAttribute("Weapon")
+	if typeof(weaponName) == "string" then
+		updatePickupIcon(instance, weaponName)
+	end
+	instance:GetAttributeChangedSignal("Weapon"):Connect(function()
+		local newWeapon = instance:GetAttribute("Weapon")
+		if typeof(newWeapon) == "string" then
+			updatePickupIcon(instance, newWeapon)
+		end
+	end)
 end
 
 RunService.Heartbeat:Connect(function(dt: number)

@@ -13,6 +13,7 @@ local ServiceRunner = {}
 
 local PersistenceService = nil
 local SlashCommandService = nil
+local slashCommandsReady = Instance.new("BindableEvent")
 
 -- Phase 1: Must run before any model is used
 function ServiceRunner.initPersistence()
@@ -24,6 +25,13 @@ end
 function ServiceRunner.initSlashCommands()
 	SlashCommandService = require(frameworkFolder.SlashCommandService)
 	SlashCommandService:init()
+	slashCommandsReady:Fire()
+end
+
+function ServiceRunner.waitForSlashCommands()
+	if not SlashCommandService then
+		slashCommandsReady.Event:Wait()
+	end
 end
 
 function ServiceRunner.registerModels(modelInfos)

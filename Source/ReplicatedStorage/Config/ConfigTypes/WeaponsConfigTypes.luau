@@ -12,6 +12,7 @@ export type WeaponStats = {
 	speed: number,
 	noise: number, -- degrees of spread
 	auto: number, -- 0 = semi-auto (fire per click), >0 = auto-fire interval in seconds
+	icon: string,
 }
 
 export type WeaponsTable = {

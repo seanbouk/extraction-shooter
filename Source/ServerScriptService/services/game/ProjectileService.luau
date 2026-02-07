@@ -5,6 +5,7 @@ local Debris = game:GetService("Debris")
 local PhysicsService = game:GetService("PhysicsService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local ProjectilesModel = require(ServerScriptService.models.serverEntities.ProjectilesModel)
@@ -20,6 +21,19 @@ local isRunning = false
 
 -- Track spawned parts for cleanup coordination
 local spawnedParts: { [string]: BasePart } = {}
+
+-- Per-projectile metadata for raycast hit detection
+type ProjectileMeta = {
+	previousPosition: Vector3,
+	weaponName: string,
+	sourceModel: Model?,
+	firingPlayer: Player?,
+}
+local projectileMeta: { [string]: ProjectileMeta } = {}
+
+-- Shared RaycastParams (filter list updated per-ray)
+local raycastParams = RaycastParams.new()
+raycastParams.FilterType = Enum.RaycastFilterType.Exclude
 
 local shotTemplate: BasePart? = nil
 
@@ -138,6 +152,12 @@ local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Pl
 
 	-- Track the part for cleanup coordination
 	spawnedParts[entityId] = part
+	projectileMeta[entityId] = {
+		previousPosition = origin,
+		weaponName = data.weaponName,
+		sourceModel = sourceModel,
+		firingPlayer = firingPlayer,
+	}
 
 	-- Touched connection for collision
 	part.Touched:Connect(function(otherPart: BasePart)
@@ -152,11 +172,12 @@ local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Pl
 			return
 		end
 
-		-- Early-return if already processed (prevents double-damage)
+		-- Early-return if already processed (prevents double-damage from Touched + raycast)
 		if not spawnedParts[entityId] then
 			return
 		end
 		spawnedParts[entityId] = nil
+		projectileMeta[entityId] = nil
 
 		-- Apply damage if we hit a character with a Humanoid
 		local hitModel = otherPart.Parent
@@ -194,6 +215,7 @@ local function removeExpiredProjectiles(): ()
 		if part then
 			part:Destroy()
 			spawnedParts[entityId] = nil
+			projectileMeta[entityId] = nil
 		end
 		ProjectilesModel.remove(entityId)
 	end
@@ -217,6 +239,66 @@ local function startCleanupLoop()
 	end)
 end
 
+-- Raycast from previous→current position each frame to catch fast projectiles
+-- that tunnel through characters between physics steps.
+local function raycastStep(): ()
+	for entityId, part in spawnedParts do
+		local meta = projectileMeta[entityId]
+		if not meta then
+			continue
+		end
+
+		local currentPos = part.Position
+		local prevPos = meta.previousPosition
+		local sweep = currentPos - prevPos
+		local distance = sweep.Magnitude
+		meta.previousPosition = currentPos
+
+		if distance < 0.01 then
+			continue
+		end
+
+		-- Build exclude list: all Shot-tagged parts + source model
+		local excludeList: { Instance } = CollectionService:GetTagged("Shot")
+		local ignoreModel: Model? = meta.sourceModel or (meta.firingPlayer and meta.firingPlayer.Character)
+		if ignoreModel then
+			table.insert(excludeList, ignoreModel)
+		end
+		raycastParams.FilterDescendantsInstances = excludeList
+
+		local result = workspace:Raycast(prevPos, sweep, raycastParams)
+		if not result then
+			continue
+		end
+
+		local hitModel = result.Instance.Parent
+		if not hitModel then
+			continue
+		end
+
+		local humanoid = hitModel:FindFirstChildOfClass("Humanoid")
+		if not humanoid then
+			continue
+		end
+
+		-- Guard against double-processing (raycast + Touched race)
+		if not spawnedParts[entityId] then
+			continue
+		end
+		spawnedParts[entityId] = nil
+		projectileMeta[entityId] = nil
+
+		local weaponStats = WeaponsConfig.weapons[meta.weaponName]
+		if weaponStats and weaponStats.impact then
+			humanoid:TakeDamage(weaponStats.impact)
+		end
+
+		part:Destroy()
+		ProjectilesModel.remove(entityId)
+		ProjectilesModel.syncAll()
+	end
+end
+
 function ProjectileService.init()
 	print("[ProjectileService] Initializing...")
 
@@ -233,6 +315,9 @@ function ProjectileService.init()
 
 	-- Register callback for new projectiles
 	ProjectilesModel.onCreated(spawnProjectilePart)
+
+	-- Raycast sweep every frame to catch fast projectiles tunnelling through characters
+	RunService.Heartbeat:Connect(raycastStep)
 
 	-- Start cleanup loop
 	startCleanupLoop()

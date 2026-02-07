@@ -20,6 +20,7 @@ local WeaponsConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForCh
 
 local SPIN_SPEED = math.rad(180) -- 180 deg/sec, full rotation every 2 seconds
 local COLLECTION_RADIUS = 8 -- studs
+local BASE_PICKUP_AMOUNT = 5
 
 local pickupSound: Sound = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("PickupSound") :: Sound
 
@@ -90,6 +91,21 @@ local function setupPickup(instance: Instance)
 	end
 
 	table.insert(pickups, entry)
+
+	local amount = instance:GetAttribute("Amount")
+	if typeof(amount) == "number" then
+		local scale = math.sqrt(amount / BASE_PICKUP_AMOUNT)
+		if instance:IsA("BasePart") then
+			instance.Size = instance.Size * scale
+		elseif instance:IsA("Model") then
+			(instance :: Model):ScaleTo(scale)
+		end
+		for _, desc in instance:GetDescendants() do
+			if desc:IsA("SurfaceGui") then
+				desc.PixelsPerStud = desc.PixelsPerStud / scale
+			end
+		end
+	end
 
 	local weaponName = instance:GetAttribute("Weapon")
 	if typeof(weaponName) == "string" then

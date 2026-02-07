@@ -163,9 +163,29 @@ local function trySpawnNPC(spawner: BasePart): ()
 		humanoid.WalkSpeed = speed
 	end
 
-	-- Clean up on death: destroy after brief delay so spawner becomes available
+	-- Clean up on death: drop ammo pickup, then destroy after brief delay
 	if humanoid then
 		humanoid.Died:Connect(function()
+			local ammoAmount = npc:GetAttribute("Ammo") :: number?
+			if ammoAmount and ammoAmount > 0 then
+				local pickupTemplate = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("Pickup")
+				local pickup = pickupTemplate:Clone()
+				pickup:SetAttribute("Weapon", weapon)
+				pickup:SetAttribute("Amount", ammoAmount)
+
+				local npcRoot = npc:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if npcRoot then
+					if pickup:IsA("Model") then
+						pickup:PivotTo(CFrame.new(npcRoot.Position))
+					else
+						(pickup :: BasePart).Position = npcRoot.Position
+					end
+				end
+
+				CollectionService:AddTag(pickup, "Pickup")
+				pickup.Parent = workspace
+			end
+
 			task.delay(0.5, function()
 				npc:Destroy()
 			end)

@@ -163,6 +163,15 @@ local function trySpawnNPC(spawner: BasePart): ()
 		humanoid.WalkSpeed = speed
 	end
 
+	-- Clean up on death: destroy after brief delay so spawner becomes available
+	if humanoid then
+		humanoid.Died:Connect(function()
+			task.delay(0.5, function()
+				npc:Destroy()
+			end)
+		end)
+	end
+
 	local now = os.clock()
 	npcStates[spawner] = {
 		npc = npc,

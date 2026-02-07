@@ -8,6 +8,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
 local ProjectilesModel = require(ServerScriptService.models.serverEntities.ProjectilesModel)
+local WeaponsConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("WeaponsConfig"))
 
 local ProjectileService = {}
 
@@ -151,13 +152,28 @@ local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Pl
 			return
 		end
 
-		-- Destroy the part and remove the model entry
-		if spawnedParts[entityId] then
-			spawnedParts[entityId] = nil
-			part:Destroy()
-			ProjectilesModel.remove(entityId)
-			ProjectilesModel.syncAll()
+		-- Early-return if already processed (prevents double-damage)
+		if not spawnedParts[entityId] then
+			return
 		end
+		spawnedParts[entityId] = nil
+
+		-- Apply damage if we hit a character with a Humanoid
+		local hitModel = otherPart.Parent
+		if hitModel then
+			local humanoid = hitModel:FindFirstChildOfClass("Humanoid")
+			if humanoid then
+				local weaponStats = WeaponsConfig.weapons[data.weaponName]
+				if weaponStats and weaponStats.impact then
+					humanoid:TakeDamage(weaponStats.impact)
+				end
+			end
+		end
+
+		-- Destroy the projectile and clean up
+		part:Destroy()
+		ProjectilesModel.remove(entityId)
+		ProjectilesModel.syncAll()
 	end)
 end
 

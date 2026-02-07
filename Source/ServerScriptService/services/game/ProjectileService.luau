@@ -2,6 +2,8 @@
 
 local CollectionService = game:GetService("CollectionService")
 local Debris = game:GetService("Debris")
+local PhysicsService = game:GetService("PhysicsService")
+local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
 
@@ -30,7 +32,7 @@ local function findShotTemplate(): BasePart?
 	return nil
 end
 
-local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Player?): ()
+local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Player?, sourceModel: Model?): ()
 	if not shotTemplate then
 		warn("[ProjectileService] No shot template found")
 		return
@@ -91,12 +93,35 @@ local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Pl
 
 	part.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0, 0, 0, 0)
 
+	-- NPC projectiles: use collision group so they pass through the NPC body
+	if sourceModel then
+		part.CollisionGroup = "NPCProjectile"
+	end
+
 	part.Parent = workspace
 
 	-- Immediate network ownership — the LinearVelocity constraint replicates
-	-- as a child of the part, so the client has the velocity from frame one
+	-- as a child of the part, so the client has the velocity from frame one.
 	if firingPlayer then
 		part:SetNetworkOwner(firingPlayer)
+	else
+		-- NPC projectile: assign nearest player so their client simulates physics
+		local bestPlayer: Player? = nil
+		local bestDist = math.huge
+		for _, player in Players:GetPlayers() do
+			local character = player.Character
+			if character then
+				local root = character:FindFirstChild("HumanoidRootPart") :: BasePart?
+				if root then
+					local dist = (root.Position - origin).Magnitude
+					if dist < bestDist then
+						bestDist = dist
+						bestPlayer = player
+					end
+				end
+			end
+		end
+		part:SetNetworkOwner(bestPlayer)
 	end
 
 	print(string.format(
@@ -120,8 +145,9 @@ local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Pl
 			return
 		end
 
-		-- Ignore the firing player's own character
-		if firingPlayer and firingPlayer.Character and otherPart:IsDescendantOf(firingPlayer.Character) then
+		-- Ignore the source model (NPC or player character)
+		local ignoreModel = sourceModel or (firingPlayer and firingPlayer.Character)
+		if ignoreModel and otherPart:IsDescendantOf(ignoreModel) then
 			return
 		end
 
@@ -177,6 +203,11 @@ end
 
 function ProjectileService.init()
 	print("[ProjectileService] Initializing...")
+
+	-- Collision groups: NPC projectiles pass through NPC bodies
+	pcall(PhysicsService.RegisterCollisionGroup, PhysicsService, "NPCProjectile")
+	pcall(PhysicsService.RegisterCollisionGroup, PhysicsService, "NPCBody")
+	PhysicsService:CollisionGroupSetCollidable("NPCProjectile", "NPCBody", false)
 
 	-- Find the shot template in ReplicatedStorage
 	shotTemplate = findShotTemplate()

@@ -15,6 +15,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local AbstractView = require(ReplicatedFirst:WaitForChild("AbstractView"))
+local Network = require(ReplicatedStorage:WaitForChild("Network"))
 local WeaponsConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("WeaponsConfig"))
 
 local SPIN_SPEED = math.rad(180) -- 180 deg/sec, full rotation every 2 seconds
@@ -130,6 +131,14 @@ RunService.Heartbeat:Connect(function(dt: number)
 			local pickupPos = pickup.getPosition(pickup.instance)
 			local distance = (currentRoot.Position - pickupPos).Magnitude
 			if distance <= COLLECTION_RADIUS then
+				-- Award ammo for this pickup's weapon
+				local weaponName = pickup.instance:GetAttribute("Weapon")
+				local amount = pickup.instance:GetAttribute("Amount")
+				if typeof(weaponName) == "string" and typeof(amount) == "number" then
+					local ammoType = string.lower(weaponName)
+					Network.Intent.Ammo:FireServer(Network.Actions.Ammo.Collect, ammoType, amount)
+				end
+
 				-- Enter collected state: hide the pickup visually
 				if pickup.instance:IsA("BasePart") then
 					pickup.instance.Transparency = 1

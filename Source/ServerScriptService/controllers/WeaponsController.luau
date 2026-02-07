@@ -4,6 +4,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local AbstractController = require(script.Parent.AbstractController)
 local ProjectilesModel = require(script.Parent.Parent.models.serverEntities.ProjectilesModel)
+local AmmoModel = require(script.Parent.Parent.models.user.AmmoModel)
 local Network = require(ReplicatedStorage.Network)
 local WeaponsConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForChild("WeaponsConfig"))
 
@@ -12,6 +13,14 @@ WeaponsController.__index = WeaponsController
 setmetatable(WeaponsController, AbstractController)
 
 export type WeaponsController = typeof(setmetatable({}, WeaponsController)) & AbstractController.AbstractController
+
+local WEAPON_AMMO_TYPE: { [string]: AmmoModel.AmmoType } = {
+	Pistol = "pistol",
+	Shot = "shot",
+	Laser = "laser",
+	Auto = "auto",
+	Canon = "canon",
+}
 
 local CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
 
@@ -54,6 +63,16 @@ local function fire(player: Player, weaponName: string, targetPosition: Vector3)
 	if not rootPart then
 		warn(player.Name .. " has no HumanoidRootPart")
 		return
+	end
+
+	-- Consume ammo (Potato has no entry, so it fires freely)
+	local ammoType = WEAPON_AMMO_TYPE[weaponName]
+	if ammoType then
+		local ammoModel = AmmoModel.get(tostring(player.UserId))
+		if not ammoModel or not ammoModel:spendAmmo(ammoType, 1) then
+			warn(player.Name .. " has no " .. ammoType .. " ammo")
+			return
+		end
 	end
 
 	-- Target is projected 1000 studs from the client's player position,

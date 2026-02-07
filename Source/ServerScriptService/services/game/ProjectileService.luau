@@ -13,6 +13,10 @@ local WeaponsConfig = require(ReplicatedStorage:WaitForChild("Config"):WaitForCh
 
 local ProjectileService = {}
 
+local avatarHitEvent = Instance.new("RemoteEvent")
+avatarHitEvent.Name = "AvatarHitEvent"
+avatarHitEvent.Parent = ReplicatedStorage
+
 local CHECK_INTERVAL_SECONDS = 0.5
 local PROJECTILE_LIFETIME_SECONDS = 10
 local DEBRIS_FALLBACK_SECONDS = 15
@@ -188,6 +192,7 @@ local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Pl
 				if weaponStats and weaponStats.impact then
 					humanoid:TakeDamage(weaponStats.impact)
 				end
+				avatarHitEvent:FireAllClients(part.Position)
 			end
 		end
 
@@ -292,6 +297,7 @@ local function raycastStep(): ()
 		if weaponStats and weaponStats.impact then
 			humanoid:TakeDamage(weaponStats.impact)
 		end
+		avatarHitEvent:FireAllClients(result.Position)
 
 		part:Destroy()
 		ProjectilesModel.remove(entityId)

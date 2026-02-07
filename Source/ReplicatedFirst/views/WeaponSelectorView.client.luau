@@ -21,9 +21,11 @@
 ]]
 
 local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
 
 local AbstractView = require(ReplicatedFirst:WaitForChild("AbstractView"))
+local Network = require(ReplicatedStorage:WaitForChild("Network"))
 
 local view = AbstractView.new("WeaponSelectorView", "WeaponSelector")
 
@@ -34,6 +36,7 @@ type WeaponEntry = {
 	name: string,
 	button: TextButton,
 	originalColor: Color3,
+	baseText: string,
 }
 
 local function setupWeaponSelector(screenGui: Instance)
@@ -55,11 +58,13 @@ local function setupWeaponSelector(screenGui: Instance)
 
 		local indexStr, weaponName = string.match(child.Name, "^(%d+)%s+(.+)$")
 		if indexStr and weaponName then
+			local btn = child :: TextButton
 			table.insert(weapons, {
 				index = tonumber(indexStr) :: number,
 				name = weaponName,
-				button = child :: TextButton,
-				originalColor = (child :: TextButton).BackgroundColor3,
+				button = btn,
+				originalColor = btn.BackgroundColor3,
+				baseText = btn.Text,
 			})
 		end
 	end
@@ -118,6 +123,29 @@ local function setupWeaponSelector(screenGui: Instance)
 
 	-- Initial selection
 	applySelection()
+
+	-- Map weapon names to ammo state keys
+	local weaponToAmmoKey: { [string]: string } = {
+		Pistol = "pistol",
+		Shot = "shot",
+		Laser = "laser",
+		Auto = "auto",
+		Canon = "canon",
+	}
+
+	-- Observe ammo state and update button text
+	Network.State.Ammo:Observe(function(data: Network.AmmoState)
+		for _, weapon in weapons do
+			local ammoKey = weaponToAmmoKey[weapon.name]
+			if ammoKey then
+				local count = (data :: any)[ammoKey] :: number
+				weapon.button.Text = `{weapon.baseText} <font color="#0099FF">{count}</font>`
+			else
+				-- Potato gets infinity
+				weapon.button.Text = `{weapon.baseText} <font color="#0099FF">\u{221E}</font>`
+			end
+		end
+	end)
 end
 
 view:initialize(setupWeaponSelector)

@@ -13,19 +13,19 @@
 
 	Usage in Controllers:
 		local Network = require(ReplicatedStorage.Network)
-		self.intentEvent = Network.registerIntent("CashMachine")
+		self.intentEvent = Network.registerIntent("Weapons")
 
 	Usage in Models:
 		local Network = require(ReplicatedStorage.Network)
-		self._stateProperty = Network.registerState("Inventory", defaultState)
+		self._stateProperty = Network.registerState("Projectiles", defaultState)
 
 	Usage in Views:
 		local Network = require(ReplicatedStorage.Network)
-		local cashMachineIntent = Network.Intent.CashMachine
-		cashMachineIntent:FireServer(Network.Actions.CashMachine.Withdraw, amount)
+		local weaponsIntent = Network.Intent.Weapons
+		weaponsIntent:FireServer(Network.Actions.Weapons.Fire)
 
-		local inventoryState = Network.State.Inventory
-		inventoryState:Observe(function(data) ... end)
+		local projectilesState = Network.State.Projectiles
+		projectilesState:Observe(function(data) ... end)
 ]]
 
 local Bolt = require(script.Parent.Bolt)
@@ -38,34 +38,11 @@ local NetworkBuilder = require(script.Parent.NetworkBuilder)
 -- Network Configuration: Single source of truth for all controllers and state
 local NetworkConfig = {
 	Controllers = {
-		Bazaar = { "BuyTreasure" },
-		CashMachine = { "Withdraw", "Deposit" },
-		Shrine = { "Donate" },
 		SlashCommand = {},  -- No actions, just the intent
 		Weapons = { "Fire" },
 	},
 
 	States = {
-		Candles = {
-			ownerId = "",
-			modelId = "",
-			creator = "",
-			positionX = 0,
-			positionY = 0,
-			positionZ = 0,
-			createdTime = 0,
-		},
-		Favours = {
-			ownerId = "",
-			modelId = "",
-			favourType = "",
-		},
-		Inventory = {
-			ownerId = "",
-			gold = 0,
-			treasure = 0,
-			favourIds = {},
-		},
 		Projectiles = {
 			ownerId = "",
 			modelId = "",
@@ -76,11 +53,6 @@ local NetworkConfig = {
 			diameter = 0, length = 0,
 			colourR = 0, colourG = 0, colourB = 0,
 			createdTime = 0,
-		},
-		Shrine = {
-			ownerId = "",
-			treasure = 0,
-			userId = "",
 		},
 		SlashCommand = {
 			ownerId = "",
@@ -100,35 +72,9 @@ local Network = NetworkBuilder.build(NetworkConfig, Bolt)
 -- ============================================================================
 
 -- Action Type Exports (manually defined for type safety)
-export type BazaarAction = "BuyTreasure"
-export type CashMachineAction = "Withdraw" | "Deposit"
-export type ShrineAction = "Donate"
 export type WeaponsAction = "Fire"
 
 -- State Type Exports (manually defined for type safety)
-export type CandlesState = {
-	ownerId: string,
-	modelId: string,
-	creator: string,
-	positionX: number,
-	positionY: number,
-	positionZ: number,
-	createdTime: number,
-}
-
-export type FavoursState = {
-	ownerId: string,
-	modelId: string,
-	favourType: string,
-}
-
-export type InventoryState = {
-	ownerId: string,
-	gold: number,
-	treasure: number,
-	favourIds: {string},
-}
-
 export type ProjectilesState = {
 	ownerId: string,
 	modelId: string,
@@ -139,12 +85,6 @@ export type ProjectilesState = {
 	diameter: number, length: number,
 	colourR: number, colourG: number, colourB: number,
 	createdTime: number,
-}
-
-export type ShrineState = {
-	ownerId: string,
-	treasure: number,
-	userId: string,
 }
 
 -- ============================================================================

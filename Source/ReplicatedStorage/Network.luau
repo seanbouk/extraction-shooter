@@ -38,6 +38,7 @@ local NetworkBuilder = require(script.Parent.NetworkBuilder)
 -- Network Configuration: Single source of truth for all controllers and state
 local NetworkConfig = {
 	Controllers = {
+		Ammo = { "Spend", "Collect" },
 		SlashCommand = {},  -- No actions, just the intent
 		Weapons = { "Fire" },
 	},
@@ -80,6 +81,7 @@ local Network = NetworkBuilder.build(NetworkConfig, Bolt)
 -- ============================================================================
 
 -- Action Type Exports (manually defined for type safety)
+export type AmmoAction = "Spend" | "Collect"
 export type WeaponsAction = "Fire"
 
 -- State Type Exports (manually defined for type safety)

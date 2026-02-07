@@ -8,14 +8,18 @@
 	Supports both BasePart and Model instances.
 ]]
 
+local Debris = game:GetService("Debris")
 local Players = game:GetService("Players")
 local ReplicatedFirst = game:GetService("ReplicatedFirst")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
 local AbstractView = require(ReplicatedFirst:WaitForChild("AbstractView"))
 
 local SPIN_SPEED = math.rad(180) -- 180 deg/sec, full rotation every 2 seconds
 local COLLECTION_RADIUS = 8 -- studs
+
+local pickupSound: Sound = ReplicatedStorage:WaitForChild("Assets"):WaitForChild("PickupSound") :: Sound
 
 local view = AbstractView.new("PickupView", "Pickup")
 
@@ -100,7 +104,24 @@ RunService.Heartbeat:Connect(function(dt: number)
 			local pickupPos = pickup.getPosition(pickup.instance)
 			local distance = (currentRoot.Position - pickupPos).Magnitude
 			if distance <= COLLECTION_RADIUS then
-				pickup.instance:Destroy()
+				-- Enter collected state: hide the pickup visually
+				if pickup.instance:IsA("BasePart") then
+					pickup.instance.Transparency = 1
+				elseif pickup.instance:IsA("Model") then
+					for _, desc in pickup.instance:GetDescendants() do
+						if desc:IsA("BasePart") then
+							desc.Transparency = 1
+						end
+					end
+				end
+
+				-- Play sound parented to the pickup, then let Debris clean up both
+				local sound = pickupSound:Clone()
+				sound.Parent = pickup.instance
+				sound:Play()
+				Debris:AddItem(pickup.instance, sound.TimeLength)
+
+				-- Remove from tracking
 				pickups[i] = pickups[#pickups]
 				pickups[#pickups] = nil :: any
 				continue

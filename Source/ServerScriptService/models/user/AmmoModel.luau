@@ -2,6 +2,9 @@
 
 local AbstractModel = require(script.Parent.Parent.AbstractModel)
 
+local SYNC_DEBOUNCE = 5
+local SYNC_MAX_STALE = 15
+
 local AmmoModel = {}
 AmmoModel.__index = AmmoModel
 setmetatable(AmmoModel, AbstractModel)
@@ -49,6 +52,34 @@ function AmmoModel:getAmmo(ammoType: AmmoType): number
 	return 0
 end
 
+function AmmoModel:_flushSync(): ()
+	if self._syncThread then
+		task.cancel(self._syncThread)
+		self._syncThread = nil
+	end
+	if self._syncStaleThread then
+		task.cancel(self._syncStaleThread)
+		self._syncStaleThread = nil
+	end
+	self:syncState()
+end
+
+function AmmoModel:_debouncedSync(): ()
+	if self._syncThread then
+		task.cancel(self._syncThread)
+	end
+	self._syncThread = task.delay(SYNC_DEBOUNCE, function()
+		self._syncThread = nil
+		self:_flushSync()
+	end)
+	if not self._syncStaleThread then
+		self._syncStaleThread = task.delay(SYNC_MAX_STALE, function()
+			self._syncStaleThread = nil
+			self:_flushSync()
+		end)
+	end
+end
+
 function AmmoModel:addAmmo(ammoType: AmmoType, amount: number): ()
 	if ammoType == "pistol" then self.pistol += amount
 	elseif ammoType == "shot" then self.shot += amount
@@ -56,7 +87,7 @@ function AmmoModel:addAmmo(ammoType: AmmoType, amount: number): ()
 	elseif ammoType == "auto" then self.auto += amount
 	elseif ammoType == "canon" then self.canon += amount
 	end
-	self:syncState()
+	self:_flushSync()
 end
 
 function AmmoModel:spendAmmo(ammoType: AmmoType, amount: number): boolean
@@ -71,7 +102,11 @@ function AmmoModel:spendAmmo(ammoType: AmmoType, amount: number): boolean
 	elseif ammoType == "auto" then self.auto -= amount
 	elseif ammoType == "canon" then self.canon -= amount
 	end
-	self:syncState()
+	if amount == 1 then
+		self:_debouncedSync()
+	else
+		self:_flushSync()
+	end
 	return true
 end
 

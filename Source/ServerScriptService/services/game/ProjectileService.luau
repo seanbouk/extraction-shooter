@@ -121,6 +121,13 @@ local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Pl
 
 	part.Parent = workspace
 
+	-- Cancel gravity so projectiles fly perfectly straight
+	local antiGravity = Instance.new("VectorForce")
+	antiGravity.Attachment0 = attachment
+	antiGravity.Force = Vector3.new(0, part:GetMass() * workspace.Gravity, 0)
+	antiGravity.RelativeTo = Enum.ActuatorRelativeTo.World
+	antiGravity.Parent = part
+
 	-- Immediate network ownership — the LinearVelocity constraint replicates
 	-- as a child of the part, so the client has the velocity from frame one.
 	if firingPlayer then

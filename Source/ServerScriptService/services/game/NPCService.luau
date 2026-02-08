@@ -142,14 +142,37 @@ local function trySpawnNPC(spawner: BasePart): ()
 	local npc = template:Clone()
 	npc:PivotTo(attachment.WorldCFrame)
 
-	-- Set collision group so NPC projectiles pass through NPC bodies
+	-- Set collision group so projectiles pass through NPC body parts
 	for _, descendant in npc:GetDescendants() do
 		if descendant:IsA("BasePart") then
-			descendant.CollisionGroup = "NPCBody"
+			descendant.CollisionGroup = "CharacterBody"
 		end
 	end
 
 	npc.Parent = workspace
+
+	-- Create hitbox sphere for projectile detection
+	local npcRoot = npc:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if npcRoot then
+		local sphere = Instance.new("Part")
+		sphere.Name = "HitboxSphere"
+		sphere.Shape = Enum.PartType.Ball
+		sphere.Size = Vector3.new(6, 6, 6)
+		sphere.Transparency = 1
+		sphere.CanCollide = false
+		sphere.CanTouch = true
+		sphere.CanQuery = true
+		sphere.Massless = true
+		sphere.CollisionGroup = "NPCHitbox"
+		sphere.CFrame = npcRoot.CFrame
+
+		local weld = Instance.new("WeldConstraint")
+		weld.Part0 = npcRoot
+		weld.Part1 = sphere
+		weld.Parent = sphere
+
+		sphere.Parent = npc
+	end
 
 	-- Read attributes from the NPC template
 	local speed = npc:GetAttribute("Speed") :: number? or 16

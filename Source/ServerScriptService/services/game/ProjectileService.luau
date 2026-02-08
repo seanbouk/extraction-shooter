@@ -112,9 +112,11 @@ local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Pl
 
 	part.CustomPhysicalProperties = PhysicalProperties.new(0.01, 0, 0, 0, 0)
 
-	-- NPC projectiles: use collision group so they pass through the NPC body
+	-- Assign collision group: NPC projectiles vs player projectiles
 	if sourceModel then
 		part.CollisionGroup = "NPCProjectile"
+	else
+		part.CollisionGroup = "Projectile"
 	end
 
 	part.Parent = workspace
@@ -270,6 +272,7 @@ local function raycastStep(): ()
 			table.insert(excludeList, ignoreModel)
 		end
 		raycastParams.FilterDescendantsInstances = excludeList
+		raycastParams.CollisionGroup = if meta.sourceModel then "NPCProjectile" else "Projectile"
 
 		local result = workspace:Raycast(prevPos, sweep, raycastParams)
 		if not result then
@@ -305,13 +308,86 @@ local function raycastStep(): ()
 	end
 end
 
+local function setupCharacterHitbox(character: Model, hitboxGroup: string): ()
+	local rootPart = character:WaitForChild("HumanoidRootPart") :: BasePart
+
+	-- Assign all existing body parts to CharacterBody
+	for _, descendant in character:GetDescendants() do
+		if descendant:IsA("BasePart") then
+			descendant.CollisionGroup = "CharacterBody"
+		end
+	end
+
+	-- Assign future body parts (accessories, etc.) — skip the hitbox sphere
+	character.DescendantAdded:Connect(function(descendant)
+		if descendant:IsA("BasePart") and descendant.Name ~= "HitboxSphere" then
+			descendant.CollisionGroup = "CharacterBody"
+		end
+	end)
+
+	-- Create the hitbox sphere
+	local sphere = Instance.new("Part")
+	sphere.Name = "HitboxSphere"
+	sphere.Shape = Enum.PartType.Ball
+	sphere.Size = Vector3.new(6, 6, 6)
+	sphere.Transparency = 1
+	sphere.CanCollide = false
+	sphere.CanTouch = true
+	sphere.CanQuery = true
+	sphere.Massless = true
+	sphere.CollisionGroup = hitboxGroup
+	sphere.CFrame = rootPart.CFrame
+
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = rootPart
+	weld.Part1 = sphere
+	weld.Parent = sphere
+
+	sphere.Parent = character
+end
+
 function ProjectileService.init()
 	print("[ProjectileService] Initializing...")
 
-	-- Collision groups: NPC projectiles pass through NPC bodies
+	-- Register collision groups
+	pcall(PhysicsService.RegisterCollisionGroup, PhysicsService, "Projectile")
 	pcall(PhysicsService.RegisterCollisionGroup, PhysicsService, "NPCProjectile")
-	pcall(PhysicsService.RegisterCollisionGroup, PhysicsService, "NPCBody")
-	PhysicsService:CollisionGroupSetCollidable("NPCProjectile", "NPCBody", false)
+	pcall(PhysicsService.RegisterCollisionGroup, PhysicsService, "PlayerHitbox")
+	pcall(PhysicsService.RegisterCollisionGroup, PhysicsService, "NPCHitbox")
+	pcall(PhysicsService.RegisterCollisionGroup, PhysicsService, "CharacterBody")
+
+	-- Projectiles pass through body parts, only hit hitbox spheres
+	PhysicsService:CollisionGroupSetCollidable("Projectile", "CharacterBody", false)
+	PhysicsService:CollisionGroupSetCollidable("NPCProjectile", "CharacterBody", false)
+
+	-- NPC projectiles can't hit NPC hitboxes (friendly-fire prevention)
+	PhysicsService:CollisionGroupSetCollidable("NPCProjectile", "NPCHitbox", false)
+
+	-- Hitbox spheres don't interact with environment or body parts
+	PhysicsService:CollisionGroupSetCollidable("PlayerHitbox", "Default", false)
+	PhysicsService:CollisionGroupSetCollidable("NPCHitbox", "Default", false)
+	PhysicsService:CollisionGroupSetCollidable("PlayerHitbox", "CharacterBody", false)
+	PhysicsService:CollisionGroupSetCollidable("NPCHitbox", "CharacterBody", false)
+
+	-- Hitbox spheres don't interact with each other
+	PhysicsService:CollisionGroupSetCollidable("PlayerHitbox", "PlayerHitbox", false)
+	PhysicsService:CollisionGroupSetCollidable("NPCHitbox", "NPCHitbox", false)
+	PhysicsService:CollisionGroupSetCollidable("PlayerHitbox", "NPCHitbox", false)
+
+	-- Attach hitbox spheres to player characters
+	local function onPlayerAdded(player: Player)
+		player.CharacterAdded:Connect(function(character)
+			setupCharacterHitbox(character, "PlayerHitbox")
+		end)
+		-- Handle already-spawned character
+		if player.Character then
+			setupCharacterHitbox(player.Character, "PlayerHitbox")
+		end
+	end
+	for _, player in Players:GetPlayers() do
+		onPlayerAdded(player)
+	end
+	Players.PlayerAdded:Connect(onPlayerAdded)
 
 	-- Find the shot template in ReplicatedStorage
 	shotTemplate = findShotTemplate()

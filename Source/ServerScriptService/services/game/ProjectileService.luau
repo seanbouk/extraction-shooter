@@ -179,6 +179,11 @@ local function spawnProjectilePart(entityId: string, data: any, firingPlayer: Pl
 			return
 		end
 
+		-- Ignore trigger/spawner volumes
+		if otherPart.CollisionGroup == "Trigger" then
+			return
+		end
+
 		-- Ignore the source model (NPC or player character)
 		local ignoreModel = sourceModel or (firingPlayer and firingPlayer.Character)
 		if ignoreModel and otherPart:IsDescendantOf(ignoreModel) then
@@ -387,6 +392,24 @@ function ProjectileService.init()
 	PhysicsService:CollisionGroupSetCollidable("PlayerHitbox", "PlayerHitbox", false)
 	PhysicsService:CollisionGroupSetCollidable("NPCHitbox", "NPCHitbox", false)
 	PhysicsService:CollisionGroupSetCollidable("PlayerHitbox", "NPCHitbox", false)
+
+	-- Trigger/spawner volumes: projectiles pass through them
+	pcall(PhysicsService.RegisterCollisionGroup, PhysicsService, "Trigger")
+	PhysicsService:CollisionGroupSetCollidable("Projectile", "Trigger", false)
+	PhysicsService:CollisionGroupSetCollidable("NPCProjectile", "Trigger", false)
+
+	-- Assign Trigger group to spawner and trigger volumes (existing + future)
+	local function assignTriggerGroup(instance: Instance)
+		if instance:IsA("BasePart") then
+			instance.CollisionGroup = "Trigger"
+		end
+	end
+	for _, tag in { "NPC", "TimeOfDayTrigger" } do
+		for _, instance in CollectionService:GetTagged(tag) do
+			assignTriggerGroup(instance)
+		end
+		CollectionService:GetInstanceAddedSignal(tag):Connect(assignTriggerGroup)
+	end
 
 	-- Attach hitbox spheres to player characters
 	local function onPlayerAdded(player: Player)

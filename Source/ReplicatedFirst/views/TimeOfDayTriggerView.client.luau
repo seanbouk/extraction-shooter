@@ -19,7 +19,7 @@
 	1. Create a Part in Workspace covering the trigger zone
 	2. Add attribute "Time" (number) set to desired ClockTime (e.g., 14 for 2 PM)
 	3. Apply CollectionService tag "TimeOfDayTrigger" to the Part
-	4. Set CanCollide = false and Transparency = 1 if desired
+	4. Parts are visible in Studio but hidden at runtime automatically
 ]]
 
 local Lighting = game:GetService("Lighting")
@@ -39,6 +39,7 @@ local view = AbstractView.new("TimeOfDayTriggerView", "TimeOfDayTrigger")
 
 local function setupTrigger(trigger: Instance)
 	local part = trigger :: BasePart
+	part.Transparency = 1
 
 	part.Touched:Connect(function(otherPart: BasePart)
 		local character = localPlayer.Character

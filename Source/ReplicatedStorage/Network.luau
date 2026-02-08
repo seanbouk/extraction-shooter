@@ -52,6 +52,10 @@ local NetworkConfig = {
 			auto = 20,
 			canon = 1,
 		},
+		Progress = {
+			ownerId = "",
+			progress = 0,
+		},
 		Projectiles = {
 			ownerId = "",
 			modelId = "",
@@ -92,6 +96,11 @@ export type AmmoState = {
 	laser: number,
 	auto: number,
 	canon: number,
+}
+
+export type ProgressState = {
+	ownerId: string,
+	progress: number,
 }
 
 export type ProjectilesState = {

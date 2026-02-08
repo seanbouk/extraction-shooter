@@ -274,7 +274,14 @@ local function raycastStep(): ()
 		raycastParams.FilterDescendantsInstances = excludeList
 		raycastParams.CollisionGroup = if meta.sourceModel then "NPCProjectile" else "Projectile"
 
-		local result = workspace:Raycast(prevPos, sweep, raycastParams)
+		-- Spherecast accounts for the projectile's physical diameter so near-edge
+		-- hits register, not just dead-centre ones.
+		local weaponDiameter = 0.5
+		local ws = WeaponsConfig.weapons[meta.weaponName]
+		if ws then
+			weaponDiameter = ws.diameter
+		end
+		local result = workspace:Spherecast(prevPos, weaponDiameter / 2, sweep, raycastParams)
 		if not result then
 			continue
 		end

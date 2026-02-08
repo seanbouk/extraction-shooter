@@ -157,7 +157,7 @@ local function trySpawnNPC(spawner: BasePart): ()
 		local sphere = Instance.new("Part")
 		sphere.Name = "HitboxSphere"
 		sphere.Shape = Enum.PartType.Ball
-		sphere.Size = Vector3.new(6, 6, 6)
+		sphere.Size = Vector3.new(10, 10, 10)
 		sphere.Transparency = 1
 		sphere.CanCollide = false
 		sphere.CanTouch = true
